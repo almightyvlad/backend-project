@@ -1,49 +1,34 @@
 import {
-  ConflictException,
-  ForbiddenException,
+  BadRequestException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common'
-import type { CreateUserDto } from './dto/create-user.dto/create-user.dto.js'
-import bcrypt from 'bcrypt'
-import { LoginDto } from '../../auth/dto/login.dto.js'
+import type { CreateUserDto } from './dto/create-user.dto.js'
 import { UsersRepository } from './users.repository.js'
-import { UpdateUserDto } from './dto/update-user.dto/update-user.dto.js'
+import { UpdateUserDto } from './dto/update-user.dto.js'
+import { TokensService } from '../../auth/tokens.service.js'
+import { hashPassword } from '../../auth/helpers/password.helper.js'
+
 
 @Injectable()
 export class UsersService {
-  constructor(private repository: UsersRepository) {}
-
-  async searchUserByLogin(login: string, page: number, limit: number) {
-    return await this.repository.searchByLogin(login, page, limit)
-  }
+  constructor(
+    private readonly repository: UsersRepository,
+    private readonly tokensService: TokensService
+  ) { }
 
   async getUsers(page: number, limit: number, login?: string) {
-    if (login) {
-      return await this.searchUserByLogin(login, page, limit)
-    }
-
-    return await this.repository.getUsers(page, limit)
+    return this.repository.getUsers(page, limit, login)
   }
 
   async createUser(user: CreateUserDto) {
-    try {
-      const userWithHash = {
-        ...user,
-        password: await bcrypt.hash(user.password, 10),
-      }
+    const createdUser = await this.repository.createUser({
+      ...user,
+      password: await hashPassword(user.password),
+    })
 
-      return await this.repository.createUser(userWithHash)
-    } catch (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error) {
-        if (error.code === '23505') {
-          throw new ConflictException('Login or email already exists')
-        }
-      }
-
-      throw error
-    }
+    return this.tokensService.issueTokens(createdUser.id)
   }
 
   async findByLogin(login: string) {
@@ -66,40 +51,29 @@ export class UsersService {
     return user
   }
 
-  async updateUser(id: number, user: UpdateUserDto, currentUserId: number) {
-    try {
-      await this.findById(id)
+  async updateUser(user: UpdateUserDto, currentUserId: number) {
+    await this.findById(currentUserId)
 
-      if (id !== currentUserId) {
-        throw new ForbiddenException('You can only update your own profile')
-      }
 
-      const updatedUser = { ...user }
-
-      if (user.password) {
-        updatedUser.password = await bcrypt.hash(user.password, 10)
-      }
-
-      return await this.repository.updateUser(id, updatedUser)
-    } catch (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error) {
-        if (error.code === '23505') {
-          throw new ConflictException('Login or email already exists')
-        }
-      }
-
-      throw error
+    if (Object.keys(user).length === 0) {
+      throw new BadRequestException('At least one field must be provided')
     }
+
+    const updatedUser = { ...user }
+
+    const passwordChanged = Boolean(user.password)
+
+    if (user.password) {
+      updatedUser.password = await hashPassword(user.password)
+    }
+
+    return this.repository.updateUser(currentUserId, updatedUser, passwordChanged)
   }
 
-  async softDeleteUser(id: number, currentUserId: number) {
-    await this.findById(id)
+  async softDeleteUser(currentUserId: number) {
+    await this.findById(currentUserId)
 
-    if (id !== currentUserId) {
-      throw new ForbiddenException('You can only delete your own profile')
-    }
-
-    await this.repository.softDeleteUser(id)
+    await this.repository.softDeleteUser(currentUserId)
 
     return { message: 'User deleted successfully' }
   }

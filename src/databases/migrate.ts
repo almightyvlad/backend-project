@@ -25,32 +25,36 @@ async function migrateToLatest() {
     }),
   })
 
-  const migrator = new Migrator({
-    db,
-    provider: new FileMigrationProvider({
-      fs,
-      path,
-      migrationFolder: fileURLToPath(new URL('./migrations', import.meta.url)),
-    }),
-  })
+  try {
+    const migrator = new Migrator({
+      db,
+      provider: new FileMigrationProvider({
+        fs,
+        path,
+        migrationFolder: fileURLToPath(new URL('./migrations', import.meta.url)),
+      }),
+    })
 
-  const { error, results } = await migrator.migrateToLatest()
+    const { error, results } = await migrator.migrateToLatest()
 
-  results?.forEach((it) => {
-    if (it.status === 'Success') {
-      console.log(`migration "${it.migrationName}" was executed successfully`)
-    } else if (it.status === 'Error') {
-      console.error(`failed to execute migration "${it.migrationName}"`)
+    results?.forEach((it) => {
+      if (it.status === 'Success') {
+        console.log(`migration "${it.migrationName}" was executed successfully`)
+      } else if (it.status === 'Error') {
+        console.error(`failed to execute migration "${it.migrationName}"`)
+      }
+    })
+
+    if (error) {
+      throw error
     }
-  })
-
-  if (error) {
-    console.error('failed to migrate')
-    console.error(error)
-    process.exit(1)
+  } finally {
+    await db.destroy()
   }
-
-  await db.destroy()
 }
 
-migrateToLatest()
+migrateToLatest().catch((error: unknown) => {
+  console.error('failed to migrate')
+  console.error(error)
+  process.exitCode = 1
+})

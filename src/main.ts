@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
 
+  app.enableShutdownHooks()
+
   const configService = app.get(ConfigService)
 
   const config = new DocumentBuilder()
@@ -20,7 +22,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config)
   SwaggerModule.setup('api', app, document)
 
-  app.useGlobalPipes(new ValidationPipe())
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true
+  }))
   app.useGlobalFilters(new HttpExceptionFilter())
   await app.listen(configService.get<number>('PORT', 3000))
 }

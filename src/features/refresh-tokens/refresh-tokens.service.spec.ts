@@ -1,15 +1,15 @@
+
 import { Test, TestingModule } from '@nestjs/testing'
-import { ConfigService } from '@nestjs/config'
 import { UnauthorizedException } from '@nestjs/common'
 import { createHash } from 'crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jwtConfig } from '../../configs/jwt.config.js'
 import { RefreshTokensService } from './refresh-tokens.service.js'
 import { RefreshTokensRepository } from './refresh-tokens.repository.js'
 
 describe('RefreshTokensService', () => {
   let service: RefreshTokensService
   let repository: RefreshTokensRepository
-  let configService: ConfigService
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -25,9 +25,9 @@ describe('RefreshTokensService', () => {
           },
         },
         {
-          provide: ConfigService,
+          provide: jwtConfig.KEY,
           useValue: {
-            get: vi.fn(),
+            refreshExpiresIn: '7d',
           },
         },
       ],
@@ -35,7 +35,6 @@ describe('RefreshTokensService', () => {
 
     service = module.get<RefreshTokensService>(RefreshTokensService)
     repository = module.get<RefreshTokensRepository>(RefreshTokensRepository)
-    configService = module.get<ConfigService>(ConfigService)
   })
 
   afterEach(() => {
@@ -48,7 +47,6 @@ describe('RefreshTokensService', () => {
 
   it('should create and save a refresh token', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1000000)
-    vi.mocked(configService.get).mockReturnValue('7d')
 
     const result = await service.createRefreshToken(1)
     const hash = createHash('sha256').update(result.hex).digest('hex')
@@ -60,15 +58,6 @@ describe('RefreshTokensService', () => {
       hash,
       result.expires,
     )
-  })
-
-  it('should throw when refresh token expiration is not configured', async () => {
-    vi.mocked(configService.get).mockReturnValue(undefined)
-
-    await expect(service.createRefreshToken(1)).rejects.toThrow(
-      'JWT_REFRESH_EXPIRES_IN is not configured',
-    )
-    expect(repository.createRefreshToken).not.toHaveBeenCalled()
   })
 
   it('should return a valid refresh token', async () => {
@@ -105,7 +94,6 @@ describe('RefreshTokensService', () => {
 
   it('should rotate a refresh token', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1000000)
-    vi.mocked(configService.get).mockReturnValue('7d')
 
     const refreshToken = 'old-token'
     const oldHash = createHash('sha256').update(refreshToken).digest('hex')
@@ -115,6 +103,8 @@ describe('RefreshTokensService', () => {
       user_id: 1,
       expires_at: new Date(2000000),
     } as never)
+
+    vi.mocked(repository.replaceRefreshToken).mockResolvedValue(true as never)
 
     const result = await service.rotateRefreshToken(refreshToken)
     const newHash = createHash('sha256').update(result.hex).digest('hex')
@@ -128,5 +118,26 @@ describe('RefreshTokensService', () => {
       newHash,
       result.expires,
     )
+  })
+
+  it('should throw UnauthorizedException when refresh token replacement fails', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1000000)
+
+    const refreshToken = 'old-token'
+    const oldHash = createHash('sha256').update(refreshToken).digest('hex')
+
+    vi.mocked(repository.getRefreshToken).mockResolvedValue({
+      token_hash: oldHash,
+      user_id: 1,
+      expires_at: new Date(2000000),
+    } as never)
+
+    vi.mocked(repository.replaceRefreshToken).mockResolvedValue(false as never)
+
+    await expect(
+      service.rotateRefreshToken(refreshToken),
+    ).rejects.toThrow(UnauthorizedException)
+
+    expect(repository.replaceRefreshToken).toHaveBeenCalledOnce()
   })
 })

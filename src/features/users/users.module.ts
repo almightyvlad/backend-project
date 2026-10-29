@@ -4,6 +4,7 @@ import { UsersService } from './users.service.js'
 import { DatabasesModule } from '../../databases/databases.module.js'
 import { UsersRepository } from './users.repository.js'
 import { AuthModule } from '../../auth/auth.module.js'
+import { TokensService } from '../../auth/tokens.service.js'
 
 @Module({
   controllers: [UsersController],
@@ -11,4 +12,4 @@ import { AuthModule } from '../../auth/auth.module.js'
   imports: [forwardRef(() => AuthModule), DatabasesModule],
   exports: [UsersRepository, UsersService],
 })
-export class UsersModule {}
+export class UsersModule { }

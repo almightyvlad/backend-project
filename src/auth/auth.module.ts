@@ -3,24 +3,28 @@ import { UsersModule } from '../features/users/users.module.js'
 import { AuthService } from './auth.service.js'
 import { AuthController } from './auth.controller.js'
 import { JwtModule } from '@nestjs/jwt'
-import { ConfigModule, ConfigService } from '@nestjs/config'
+import { ConfigModule, ConfigType } from '@nestjs/config'
 import { RefreshTokensModule } from '../features/refresh-tokens/refresh-tokens.module.js'
+import { jwtConfig } from '../configs/jwt.config.js'
+import { TokensService } from './tokens.service.js'
 
 @Module({
   imports: [
     forwardRef(() => UsersModule),
     RefreshTokensModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_ACCESS_SECRET'),
-        signOptions: { expiresIn: configService.get('JWT_ACCESS_EXPIRES_IN') },
+      imports: [ConfigModule.forFeature(jwtConfig)],
+      useFactory: (config: ConfigType<typeof jwtConfig>) => ({
+        secret: config.accessSecret,
+        signOptions: {
+          expiresIn: config.accessExpiresIn
+        },
       }),
-      inject: [ConfigService],
+      inject: [jwtConfig.KEY],
     }),
   ],
-  providers: [AuthService],
+  providers: [AuthService, TokensService],
   controllers: [AuthController],
-  exports: [JwtModule],
+  exports: [JwtModule, AuthService, TokensService],
 })
-export class AuthModule {}
+export class AuthModule { }

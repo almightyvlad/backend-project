@@ -4,11 +4,11 @@ services:
     container_name: backend-project-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: backend_project
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: local_dev_password
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     ports:
-      - '5432:5432'
+      - '${DATABASE_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

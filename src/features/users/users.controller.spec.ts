@@ -4,7 +4,7 @@ import { UsersController } from './users.controller.js'
 import { UsersService } from './users.service.js'
 import { AuthGuard } from '../../auth/auth.guard.js'
 import { JwtService } from '@nestjs/jwt'
-import type { CreateUserDto } from './dto/create-user.dto/create-user.dto.js'
+import type { CreateUserDto } from './dto/create-user.dto.js'
 import type { AuthenticatedRequest } from '../../auth/types/authenticated-request.js'
 
 describe('UsersController', () => {
@@ -50,9 +50,11 @@ describe('UsersController', () => {
 
   it('should return users', async () => {
     const users = [{ id: 1, login: 'vlad' }]
+    const query = { page: 1, limit: 10, login: 'vlad' }
+
     vi.mocked(usersService.getUsers).mockResolvedValue(users as never)
 
-    await expect(controller.getUsers(1, 10, 'vlad')).resolves.toEqual(users)
+    await expect(controller.getUsers(query)).resolves.toEqual(users)
     expect(usersService.getUsers).toHaveBeenCalledWith(1, 10, 'vlad')
   })
 
@@ -80,9 +82,9 @@ describe('UsersController', () => {
     vi.mocked(usersService.updateUser).mockResolvedValue(updatedUser as never)
 
     await expect(
-      controller.updateUser(1, user as never, request),
+      controller.updateUser(user as never, request),
     ).resolves.toEqual(updatedUser)
-    expect(usersService.updateUser).toHaveBeenCalledWith(1, user, 2)
+    expect(usersService.updateUser).toHaveBeenCalledWith(user, 2)
   })
 
   it('should soft-delete a user using the authenticated user id', async () => {
@@ -91,9 +93,9 @@ describe('UsersController', () => {
 
     vi.mocked(usersService.softDeleteUser).mockResolvedValue(response as never)
 
-    await expect(controller.softDeleteUser(2, request)).resolves.toEqual(
+    await expect(controller.softDeleteUser(request)).resolves.toEqual(
       response,
     )
-    expect(usersService.softDeleteUser).toHaveBeenCalledWith(2, 2)
+    expect(usersService.softDeleteUser).toHaveBeenCalledWith(2)
   })
 })

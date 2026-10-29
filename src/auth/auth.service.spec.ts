@@ -2,15 +2,21 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { UnauthorizedException } from '@nestjs/common'
 import { AuthService } from './auth.service.js'
 import { UsersRepository } from '../features/users/users.repository.js'
-import { JwtService } from '@nestjs/jwt'
 import { RefreshTokensService } from '../features/refresh-tokens/refresh-tokens.service.js'
+import { TokensService } from './tokens.service.js'
+import { comparePassword } from './helpers/password.helper.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import bcrypt from 'bcrypt'
+
+vi.mock('./helpers/password.helper.js', () => ({
+  comparePassword: vi.fn(),
+}))
 
 describe('AuthService', () => {
   let service: AuthService
   let module: TestingModule
   let repository: UsersRepository
+  let tokensService: TokensService
+  let refreshTokensService: RefreshTokensService
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
@@ -23,17 +29,16 @@ describe('AuthService', () => {
           },
         },
         {
-          provide: JwtService,
+          provide: TokensService,
           useValue: {
-            signAsync: vi.fn(),
+            issueTokens: vi.fn(),
+            updateRefreshToken: vi.fn(),
           },
         },
         {
           provide: RefreshTokensService,
           useValue: {
-            createRefreshToken: vi.fn(),
             deleteRefreshToken: vi.fn(),
-            rotateRefreshToken: vi.fn(),
           },
         },
       ],
@@ -41,10 +46,14 @@ describe('AuthService', () => {
 
     service = module.get<AuthService>(AuthService)
     repository = module.get<UsersRepository>(UsersRepository)
+    tokensService = module.get<TokensService>(TokensService)
+    refreshTokensService =
+      module.get<RefreshTokensService>(RefreshTokensService)
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.clearAllMocks()
   })
 
   it('should be defined', () => {
@@ -63,7 +72,8 @@ describe('AuthService', () => {
   })
 
   it('should throw UnauthorizedException for invalid password', async () => {
-    vi.spyOn(bcrypt, 'compare').mockResolvedValue(false as never)
+    vi.mocked(comparePassword).mockResolvedValue(false)
+
     vi.mocked(repository.findByLogin).mockResolvedValue({
       id: 1,
       login: 'vlad',
@@ -79,71 +89,61 @@ describe('AuthService', () => {
   })
 
   it('should login successfully', async () => {
-    vi.spyOn(bcrypt, 'compare').mockResolvedValue(true as never)
+    vi.mocked(comparePassword).mockResolvedValue(true)
+
     vi.mocked(repository.findByLogin).mockResolvedValue({
       id: 1,
       login: 'vlad',
       password: 'hashed-password',
     } as never)
 
-    const jwtService = module.get<JwtService>(JwtService)
-    const refreshTokensService =
-      module.get<RefreshTokensService>(RefreshTokensService)
+    const tokens = {
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+    }
 
-    vi.mocked(jwtService.signAsync).mockResolvedValue('access-token')
-    vi.mocked(refreshTokensService.createRefreshToken).mockResolvedValue({
-      hex: 'refresh-token',
-    } as never)
+    vi.mocked(tokensService.issueTokens).mockResolvedValue(tokens as never)
 
     await expect(
       service.login({
         login: 'vlad',
         password: 'correct-password',
       }),
-    ).resolves.toEqual({
-      access_token: 'access-token',
-      refresh_token: 'refresh-token',
-    })
+    ).resolves.toEqual(tokens)
+
+    expect(tokensService.issueTokens).toHaveBeenCalledWith(1)
   })
 
   it('should logout successfully', async () => {
-    const refreshTokensService =
-      module.get<RefreshTokensService>(RefreshTokensService)
+    vi.mocked(
+      refreshTokensService.deleteRefreshToken,
+    ).mockResolvedValue([] as never)
 
-    vi.mocked(refreshTokensService.deleteRefreshToken).mockResolvedValue(
-      [] as never,
-    )
+    await expect(
+      service.logout('test-refresh-token'),
+    ).resolves.toBeUndefined()
 
-    await expect(service.logout('test-refresh-token')).resolves.toEqual({
-      message: 'Logged out successfully',
-    })
-
-    expect(refreshTokensService.deleteRefreshToken).toHaveBeenCalledWith(
-      'test-refresh-token',
-    )
+    expect(
+      refreshTokensService.deleteRefreshToken,
+    ).toHaveBeenCalledWith('test-refresh-token')
   })
 
   it('should update refresh token successfully', async () => {
-    const jwtService = module.get<JwtService>(JwtService)
-    const refreshTokensService =
-      module.get<RefreshTokensService>(RefreshTokensService)
-
-    vi.mocked(refreshTokensService.rotateRefreshToken).mockResolvedValue({
-      userId: 1,
-      hex: 'new-refresh-token',
-    } as never)
-    vi.mocked(jwtService.signAsync).mockResolvedValue('new-access-token')
-
-    await expect(
-      service.updateRefreshToken('old-refresh-token'),
-    ).resolves.toEqual({
+    const tokens = {
       access_token: 'new-access-token',
       refresh_token: 'new-refresh-token',
-    })
+    }
 
-    expect(refreshTokensService.rotateRefreshToken).toHaveBeenCalledWith(
+    vi.mocked(tokensService.updateRefreshToken).mockResolvedValue(
+      tokens as never,
+    )
+
+    await expect(
+      tokensService.updateRefreshToken('old-refresh-token'),
+    ).resolves.toEqual(tokens)
+
+    expect(tokensService.updateRefreshToken).toHaveBeenCalledWith(
       'old-refresh-token',
     )
-    expect(jwtService.signAsync).toHaveBeenCalledWith({ sub: 1 })
   })
 })

@@ -8,12 +8,18 @@ import { UsersModule } from './features/users/users.module.js'
 import { FeaturesModule } from './features/features.module.js'
 import { AuthModule } from './auth/auth.module.js'
 import { RefreshTokensModule } from './features/refresh-tokens/refresh-tokens.module.js'
+import { appConfig } from './configs/app.config.js'
+import { databaseConfig } from './configs/database.config.js'
+import { jwtConfig } from './configs/jwt.config.js'
+import { AuthGuard } from './auth/auth.guard.js'
+import { APP_GUARD } from '@nestjs/core'
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       validate: (config) => envSchema.parse(config),
       isGlobal: true,
+      load: [appConfig, databaseConfig, jwtConfig]
     }),
     DatabasesModule,
     UsersModule,
@@ -22,6 +28,11 @@ import { RefreshTokensModule } from './features/refresh-tokens/refresh-tokens.mo
     RefreshTokensModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard
+    }],
 })
-export class AppModule {}
+export class AppModule { }

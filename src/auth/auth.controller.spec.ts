@@ -1,11 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { AuthController } from './auth.controller.js'
 import { AuthService } from './auth.service.js'
-import { Mocked } from 'vitest'
+import { TokensService } from './tokens.service.js'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Mocked } from 'vitest'
 
 describe('AuthController', () => {
   let controller: AuthController
   let service: Mocked<AuthService>
+  let tokensService: Mocked<TokensService>
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -16,6 +19,11 @@ describe('AuthController', () => {
           useValue: {
             login: vi.fn(),
             logout: vi.fn(),
+          },
+        },
+        {
+          provide: TokensService,
+          useValue: {
             updateRefreshToken: vi.fn(),
           },
         },
@@ -24,6 +32,11 @@ describe('AuthController', () => {
 
     controller = module.get<AuthController>(AuthController)
     service = module.get<AuthService>(AuthService) as Mocked<AuthService>
+    tokensService = module.get<TokensService>(TokensService) as Mocked<TokensService>
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
   })
 
   it('should be defined', () => {
@@ -41,7 +54,7 @@ describe('AuthController', () => {
       refresh_token: 'test-refresh-token',
     }
 
-    service.login.mockResolvedValueOnce(result)
+    service.login.mockResolvedValueOnce(result as never)
 
     const response = await controller.login(loginDto)
 
@@ -52,19 +65,15 @@ describe('AuthController', () => {
   it('should call AuthService.logout with refreshToken', async () => {
     const refreshToken = 'test-refresh-token'
 
-    const result = {
-      message: 'Logged out',
-    }
+    service.logout.mockResolvedValueOnce(undefined)
 
-    service.logout.mockResolvedValueOnce(result)
-
-    const response = await controller.logout({ refreshToken })
+    const response = await controller.logout({ refresh_token: refreshToken })
 
     expect(service.logout).toHaveBeenCalledWith(refreshToken)
-    expect(response).toEqual(result)
+    expect(response).toBeUndefined()
   })
 
-  it('should call AuthService.updateRefreshToken with refreshToken', async () => {
+  it('should call TokensService.updateRefreshToken with refreshToken', async () => {
     const refreshToken = 'test-refresh-token'
 
     const result = {
@@ -72,11 +81,11 @@ describe('AuthController', () => {
       refresh_token: 'new-refresh-token',
     }
 
-    service.updateRefreshToken.mockResolvedValueOnce(result)
+    tokensService.updateRefreshToken.mockResolvedValueOnce(result as never)
 
-    const response = await controller.getRefreshToken({ refreshToken })
+    const response = await controller.getRefreshToken({ refresh_token: refreshToken })
 
-    expect(service.updateRefreshToken).toHaveBeenCalledWith(refreshToken)
+    expect(tokensService.updateRefreshToken).toHaveBeenCalledWith(refreshToken)
     expect(response).toEqual(result)
   })
 })
