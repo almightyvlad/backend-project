@@ -62,7 +62,13 @@ describe('AppController (e2e)', () => {
 
       expect(registrationResponse.status).toBe(201)
 
-      userId = registrationResponse.body.id
+      const createdUser = await db
+        .selectFrom('users')
+        .select('id')
+        .where('login', '=', login)
+        .executeTakeFirstOrThrow()
+
+      userId = createdUser.id
 
       await request(server)
         .post('/users')

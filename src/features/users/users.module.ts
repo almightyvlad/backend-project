@@ -4,7 +4,6 @@ import { UsersService } from './users.service.js'
 import { DatabasesModule } from '../../databases/databases.module.js'
 import { UsersRepository } from './users.repository.js'
 import { AuthModule } from '../../auth/auth.module.js'
-import { TokensService } from '../../auth/tokens.service.js'
 
 @Module({
   controllers: [UsersController],

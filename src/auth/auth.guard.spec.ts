@@ -2,13 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { AuthGuard } from './auth.guard.js'
 import { JwtService } from '@nestjs/jwt'
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common'
-import { Reflector } from '@nestjs/core' // ИЗМЕНЕНИЕ: импорт Reflector
+import { Reflector } from '@nestjs/core'
 import { vi, type Mocked, describe, expect, it, beforeEach } from 'vitest'
 
 describe('AuthGuard', () => {
   let guard: AuthGuard
   let jwtService: Mocked<JwtService>
-  let reflector: Mocked<Reflector> // ИЗМЕНЕНИЕ: мок Reflector
+  let reflector: Mocked<Reflector>
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -21,7 +21,7 @@ describe('AuthGuard', () => {
           },
         },
         {
-          provide: Reflector, // ИЗМЕНЕНИЕ: регистрация мока Reflector
+          provide: Reflector,
           useValue: {
             getAllAndOverride: vi.fn().mockReturnValue(false),
           },
@@ -31,7 +31,7 @@ describe('AuthGuard', () => {
 
     guard = module.get<AuthGuard>(AuthGuard)
     jwtService = module.get<JwtService>(JwtService) as Mocked<JwtService>
-    reflector = module.get<Reflector>(Reflector) as Mocked<Reflector> // ИЗМЕНЕНИЕ
+    reflector = module.get<Reflector>(Reflector) as Mocked<Reflector>
   })
 
   it('should be defined', () => {
@@ -44,8 +44,8 @@ describe('AuthGuard', () => {
       switchToHttp: () => ({
         getRequest: () => request,
       }),
-      getHandler: () => vi.fn(), // ИЗМЕНЕНИЕ: метод для чтения метаданных
-      getClass: () => class TestController { }, // ИЗМЕНЕНИЕ
+      getHandler: () => vi.fn(),
+      getClass: () => class TestController { },
     } as unknown as ExecutionContext
 
     expect(() => guard.canActivate(context)).toThrow(UnauthorizedException)
@@ -61,8 +61,8 @@ describe('AuthGuard', () => {
       switchToHttp: () => ({
         getRequest: () => request,
       }),
-      getHandler: () => vi.fn(), // ИЗМЕНЕНИЕ
-      getClass: () => class TestController { }, // ИЗМЕНЕНИЕ
+      getHandler: () => vi.fn(),
+      getClass: () => class TestController { },
     } as unknown as ExecutionContext
 
     expect(() => guard.canActivate(context)).toThrow(UnauthorizedException)
@@ -79,8 +79,8 @@ describe('AuthGuard', () => {
       switchToHttp: () => ({
         getRequest: () => request,
       }),
-      getHandler: () => vi.fn(), // ИЗМЕНЕНИЕ
-      getClass: () => class TestController { }, // ИЗМЕНЕНИЕ
+      getHandler: () => vi.fn(),
+      getClass: () => class TestController { },
     } as unknown as ExecutionContext
 
     jwtService.verify.mockImplementationOnce(() => {
@@ -100,8 +100,8 @@ describe('AuthGuard', () => {
       switchToHttp: () => ({
         getRequest: () => request,
       }),
-      getHandler: () => vi.fn(), // ИЗМЕНЕНИЕ
-      getClass: () => class TestController { }, // ИЗМЕНЕНИЕ
+      getHandler: () => vi.fn(),
+      getClass: () => class TestController { },
     } as unknown as ExecutionContext
 
     jwtService.verify.mockReturnValueOnce({ sub: 1, email: 'test@example.com' })
