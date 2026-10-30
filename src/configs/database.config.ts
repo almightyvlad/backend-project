@@ -1,7 +1,8 @@
+
 import { registerAs } from '@nestjs/config'
 import { envSchema } from './env.validation.js'
 
-export const databaseConfig = registerAs('database', () => {
+export function getDatabaseConfig() {
     const env = envSchema.parse(process.env)
 
     return {
@@ -11,5 +12,6 @@ export const databaseConfig = registerAs('database', () => {
         user: env.DATABASE_USER,
         password: env.DATABASE_PASSWORD,
     }
-})
+}
 
+export const databaseConfig = registerAs('database', getDatabaseConfig)

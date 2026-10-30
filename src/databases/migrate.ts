@@ -6,7 +6,7 @@ import type { Database } from './database.types.js'
 import { FileMigrationProvider, Migrator } from 'kysely/migration'
 import { promises as fs } from 'fs'
 import { fileURLToPath } from 'node:url'
-import { getDatabaseConfig } from '../configs/database-env.js'
+import { getDatabaseConfig } from '../configs/database.config.js'
 
 loadEnvFile()
 
