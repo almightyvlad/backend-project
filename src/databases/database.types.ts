@@ -1,8 +1,9 @@
-import type { ColumnType, Generated } from 'kysely'
+import type { ColumnType, Generated, Insertable } from 'kysely'
 
 export type Database = {
   users: UserTable
   refresh_tokens: RefreshTokenTable
+  avatars: AvatarsTable
 }
 
 interface UserTable {
@@ -13,6 +14,7 @@ interface UserTable {
   age: number
   description: string
   deleted_at: ColumnType<Date | null, Date | null | undefined, Date | null>
+  balance: Generated<string>
 }
 
 export interface RefreshTokenTable {
@@ -22,4 +24,13 @@ export interface RefreshTokenTable {
   expires_at: Date
 }
 
-export type NewUser = Omit<UserTable, 'id' | 'deleted_at'>
+export interface AvatarsTable {
+  id: Generated<number>
+  user_id: number
+  filename: string
+  object_key: string
+  uploaded_at: Generated<Date>
+  deleted_at: ColumnType<Date | null, Date | null | undefined, Date | null>
+}
+
+export type NewUser = Insertable<Omit<UserTable, 'id' | 'deleted_at'>>
