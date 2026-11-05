@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -7,7 +8,7 @@ import { AvatarsRepository } from './avatars.repository.js'
 import { StorageService } from '../storage/storage.service.js'
 import { randomUUID } from 'crypto'
 import { PinoLogger } from 'nestjs-pino'
-import { AvatarDeletionService } from '../queues/avatar-deletion/avatar-deletion.service.js'
+import { fileTypeFromBuffer } from 'file-type'
 
 @Injectable()
 export class AvatarsService {
@@ -15,47 +16,45 @@ export class AvatarsService {
     private readonly avatarsRepository: AvatarsRepository,
     private readonly storageService: StorageService,
     private readonly logger: PinoLogger,
-    private readonly avatarDeletionService: AvatarDeletionService,
   ) {
     this.logger.setContext(AvatarsService.name)
   }
 
   async uploadAvatar(userId: number, file: Express.Multer.File) {
-    if ((await this.avatarsRepository.countActiveByUserId(userId)) >= 5) {
-      throw new ConflictException('User has 5 or more avatars')
+    const fileType = await fileTypeFromBuffer(file.buffer)
+    if (!fileType || !['image/png', 'image/jpeg'].includes(fileType.mime)) {
+      throw new BadRequestException('Only JPEG and PNG files are allowed')
     }
 
     const objectKey = randomUUID()
-
     await this.storageService.uploadFile(file, objectKey)
 
+    let avatar
     try {
-      const avatar = await this.avatarsRepository.create({
+      avatar = await this.avatarsRepository.createWithLimit({
         user_id: userId,
         filename: file.originalname,
         object_key: objectKey,
       })
-
-      this.logger.info({ userId, avatarId: avatar.id }, 'Avatar uploaded')
-
-      return avatar
     } catch (error) {
-      try {
-        await this.storageService.deleteFile(objectKey)
-      } catch (cleanupError) {
-        this.logger.error(
-          { err: cleanupError, objectKey },
-          'Failed to clean up uploaded avatar',
-        )
-      }
-
-      this.logger.error(
-        { err: error, userId, objectKey },
-        'Failed to save avatar',
-      )
-
+      await this.storageService
+        .deleteFile(objectKey)
+        .catch((cleanupError: unknown) => {
+          this.logger.error(
+            { err: cleanupError, objectKey },
+            'Avatar cleanup failed',
+          )
+        })
       throw error
     }
+
+    if (!avatar) {
+      await this.storageService.deleteFile(objectKey)
+      throw new ConflictException('User has 5 or more avatars')
+    }
+
+    this.logger.info({ userId, avatarId: avatar.id }, 'Avatar uploaded')
+    return avatar
   }
 
   async deleteAvatar(id: number, userId: number) {
@@ -70,8 +69,6 @@ export class AvatarsService {
       throw new NotFoundException('Active avatar not found')
     }
 
-    await this.avatarDeletionService.add(avatar.id, avatar.object_key)
-
     this.logger.info({ userId, avatarId: id }, 'Avatar deleted')
 
     return deletedAvatar
@@ -81,14 +78,9 @@ export class AvatarsService {
     const avatars = await this.avatarsRepository.softDeleteAllByUserId(userId)
 
     for (const avatar of avatars) {
-      await this.avatarDeletionService.add(avatar.id, avatar.object_key)
       this.logger.info({ userId, avatarId: avatar.id }, 'Avatar deleted')
     }
 
     return avatars.length
-  }
-
-  async findExpiredDeleted(date: Date) {
-    return await this.avatarsRepository.findExpiredDeleted(date)
   }
 }

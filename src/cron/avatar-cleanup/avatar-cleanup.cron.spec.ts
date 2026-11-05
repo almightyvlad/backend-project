@@ -1,13 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AvatarsService } from '../../avatars/avatars.service.js'
-import { AvatarDeletionService } from '../../queues/avatar-deletion/avatar-deletion.service.js'
+import { AvatarCleanupService } from '../../avatars/avatar-cleanup.service.js'
 import { AvatarCleanupCron } from './avatar-cleanup.cron.js'
+import { SchedulerRegistry } from '@nestjs/schedule'
+import { avatarCleanupConfig } from '../../configs/avatar-cleanup.config.js'
 
 describe('AvatarCleanupCron', () => {
   let cron: AvatarCleanupCron
-  let avatarsService: AvatarsService
-  let avatarDeletionService: AvatarDeletionService
+  let avatarCleanupService: AvatarCleanupService
+  let schedulerRegistry: SchedulerRegistry
 
   beforeEach(async () => {
     vi.useFakeTimers()
@@ -17,25 +18,26 @@ describe('AvatarCleanupCron', () => {
       providers: [
         AvatarCleanupCron,
         {
-          provide: AvatarsService,
+          provide: AvatarCleanupService,
           useValue: {
-            findExpiredDeleted: vi.fn(),
+            queueExpiredDeleted: vi.fn(),
           },
         },
         {
-          provide: AvatarDeletionService,
-          useValue: {
-            add: vi.fn(),
-          },
+          provide: SchedulerRegistry,
+          useValue: { addCronJob: vi.fn() },
+        },
+        {
+          provide: avatarCleanupConfig.KEY,
+          useValue: { cron: '0 3 * * *', retentionDays: 7 },
         },
       ],
     }).compile()
 
     cron = module.get<AvatarCleanupCron>(AvatarCleanupCron)
-    avatarsService = module.get<AvatarsService>(AvatarsService)
-    avatarDeletionService = module.get<AvatarDeletionService>(
-      AvatarDeletionService,
-    )
+    avatarCleanupService =
+      module.get<AvatarCleanupService>(AvatarCleanupService)
+    schedulerRegistry = module.get<SchedulerRegistry>(SchedulerRegistry)
   })
 
   afterEach(() => {
@@ -47,44 +49,21 @@ describe('AvatarCleanupCron', () => {
     expect(cron).toBeDefined()
   })
 
-  it('should add expired avatars to deletion queue', async () => {
-    vi.mocked(avatarsService.findExpiredDeleted).mockResolvedValue([
-      { id: 1, object_key: 'avatars/one.png' },
-      { id: 2, object_key: 'avatars/two.png' },
-    ] as Awaited<ReturnType<AvatarsService['findExpiredDeleted']>>)
-
-    vi.mocked(avatarDeletionService.add).mockResolvedValue(undefined as never)
-
+  it('should queue cleanup through the avatar service', async () => {
     await cron.handleCron()
-
-    expect(avatarDeletionService.add).toHaveBeenCalledTimes(2)
-    expect(avatarDeletionService.add).toHaveBeenNthCalledWith(
-      1,
-      1,
-      'avatars/one.png',
-    )
-    expect(avatarDeletionService.add).toHaveBeenNthCalledWith(
-      2,
-      2,
-      'avatars/two.png',
-    )
+    expect(avatarCleanupService.queueExpiredDeleted).toHaveBeenCalledOnce()
   })
 
-  it('should not add jobs if there are no expired avatars', async () => {
-    vi.mocked(avatarsService.findExpiredDeleted).mockResolvedValue([])
-
+  it('should not scan or queue separately from the service', async () => {
     await cron.handleCron()
-
-    expect(avatarDeletionService.add).not.toHaveBeenCalled()
+    expect(avatarCleanupService.queueExpiredDeleted).toHaveBeenCalledOnce()
   })
 
-  it('should search for avatars deleted more than 30 days ago', async () => {
-    vi.mocked(avatarsService.findExpiredDeleted).mockResolvedValue([])
-
-    await cron.handleCron()
-
-    const expectedDate = new Date('2026-10-04T12:00:00')
-
-    expect(avatarsService.findExpiredDeleted).toHaveBeenCalledWith(expectedDate)
+  it('registers the configured schedule on module initialization', () => {
+    cron.onModuleInit()
+    expect(schedulerRegistry.addCronJob).toHaveBeenCalledWith(
+      'avatar-cleanup',
+      expect.any(Object),
+    )
   })
 })

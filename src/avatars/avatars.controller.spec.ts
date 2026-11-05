@@ -4,6 +4,7 @@ import { AvatarsController } from './avatars.controller.js'
 import { AvatarsService } from './avatars.service.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthenticatedRequest } from '../auth/types/authenticated-request.js'
+import { AvatarCleanupService } from './avatar-cleanup.service.js'
 
 describe('AvatarsController', () => {
   let controller: AvatarsController
@@ -19,6 +20,10 @@ describe('AvatarsController', () => {
             uploadAvatar: vi.fn(),
             deleteAvatar: vi.fn(),
           },
+        },
+        {
+          provide: AvatarCleanupService,
+          useValue: { queueExpiredDeleted: vi.fn() },
         },
       ],
     }).compile()

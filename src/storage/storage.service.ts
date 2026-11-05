@@ -3,12 +3,12 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
-import { Injectable } from '@nestjs/common'
+import { Injectable, OnApplicationShutdown } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { MINIO_BUCKET } from './storage.constants.js'
 
 @Injectable()
-export class StorageService {
+export class StorageService implements OnApplicationShutdown {
   constructor(
     private readonly s3Client: S3Client,
     private readonly configService: ConfigService,
@@ -36,5 +36,9 @@ export class StorageService {
     const command = new DeleteObjectCommand(input)
 
     await this.s3Client.send(command)
+  }
+
+  onApplicationShutdown() {
+    this.s3Client.destroy()
   }
 }

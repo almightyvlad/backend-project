@@ -5,11 +5,12 @@ import { AvatarsService } from './avatars.service.js'
 import { AvatarsRepository } from './avatars.repository.js'
 import { DatabasesModule } from '../databases/databases.module.js'
 import { QueuesModule } from '../queues/queues.module.js'
+import { AvatarCleanupService } from './avatar-cleanup.service.js'
 
 @Module({
   imports: [StorageModule, DatabasesModule, QueuesModule],
   controllers: [AvatarsController],
-  providers: [AvatarsService, AvatarsRepository],
-  exports: [AvatarsService, AvatarsRepository],
+  providers: [AvatarsService, AvatarsRepository, AvatarCleanupService],
+  exports: [AvatarsService, AvatarsRepository, AvatarCleanupService],
 })
 export class AvatarsModule {}

@@ -49,4 +49,6 @@ export const envSchema = z.object({
     ),
 
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  AVATAR_CLEANUP_CRON: z.string().min(1).default('0 3 * * *'),
+  AVATAR_CLEANUP_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
 })

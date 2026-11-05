@@ -15,9 +15,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    const ping = await this.redis.ping()
-
-    console.log(ping)
+    await this.redis.ping()
   }
 
   async onModuleDestroy() {
@@ -34,5 +32,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async del(key: string) {
     return await this.redis.del(key)
+  }
+
+  async delPattern(pattern: string) {
+    let cursor = '0'
+    let deletedCount = 0
+
+    do {
+      const [nextCursor, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100,
+      )
+      cursor = nextCursor
+      if (keys.length > 0) deletedCount += await this.redis.del(...keys)
+    } while (cursor !== '0')
+
+    return deletedCount
   }
 }

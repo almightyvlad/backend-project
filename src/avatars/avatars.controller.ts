@@ -11,11 +11,15 @@ import {
 } from '@nestjs/common'
 import type { AuthenticatedRequest } from '../auth/types/authenticated-request.js'
 import { AvatarsService } from './avatars.service.js'
+import { AvatarCleanupService } from './avatar-cleanup.service.js'
 import { FileInterceptor } from '@nestjs/platform-express'
 
 @Controller('avatars')
 export class AvatarsController {
-  constructor(private readonly avatarsService: AvatarsService) {}
+  constructor(
+    private readonly avatarsService: AvatarsService,
+    private readonly avatarCleanupService: AvatarCleanupService,
+  ) {}
 
   @Post()
   @UseInterceptors(
@@ -42,6 +46,11 @@ export class AvatarsController {
     }
 
     return this.avatarsService.uploadAvatar(request.user.sub, file)
+  }
+
+  @Post('cleanup')
+  queueCleanup() {
+    return this.avatarCleanupService.queueExpiredDeleted()
   }
 
   @Delete(':id')

@@ -1,25 +1,28 @@
-import { Cron } from '@nestjs/schedule'
-import { AvatarDeletionService } from '../../queues/avatar-deletion/avatar-deletion.service.js'
-import { AvatarsService } from '../../avatars/avatars.service.js'
+import { OnModuleInit } from '@nestjs/common'
+import { SchedulerRegistry } from '@nestjs/schedule'
+import { CronJob } from 'cron'
+import { Inject } from '@nestjs/common'
+import type { ConfigType } from '@nestjs/config'
+import { avatarCleanupConfig } from '../../configs/avatar-cleanup.config.js'
+import { AvatarCleanupService } from '../../avatars/avatar-cleanup.service.js'
 import { Injectable } from '@nestjs/common'
 
 @Injectable()
-export class AvatarCleanupCron {
+export class AvatarCleanupCron implements OnModuleInit {
   constructor(
-    private readonly avatarsService: AvatarsService,
-    private readonly avatarDeletionService: AvatarDeletionService,
+    private readonly avatarCleanupService: AvatarCleanupService,
+    private readonly schedulerRegistry: SchedulerRegistry,
+    @Inject(avatarCleanupConfig.KEY)
+    private readonly config: ConfigType<typeof avatarCleanupConfig>,
   ) {}
 
-  @Cron('0 3 * * *')
+  onModuleInit() {
+    const job = new CronJob(this.config.cron, () => void this.handleCron())
+    this.schedulerRegistry.addCronJob('avatar-cleanup', job)
+    job.start()
+  }
+
   async handleCron() {
-    const date = new Date()
-
-    date.setDate(date.getDate() - 30)
-
-    const avatars = await this.avatarsService.findExpiredDeleted(date)
-
-    for (const avatar of avatars) {
-      await this.avatarDeletionService.add(avatar.id, avatar.object_key)
-    }
+    await this.avatarCleanupService.queueExpiredDeleted()
   }
 }

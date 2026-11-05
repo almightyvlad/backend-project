@@ -19,7 +19,6 @@ import { randomUUID } from 'crypto'
 import { LOG_LEVEL } from './configs/env.constants.js'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js'
 import { StorageModule } from './storage/storage.module.js'
-import { AvatarsController } from './avatars/avatars.controller.js'
 import { AvatarsModule } from './avatars/avatars.module.js'
 import { RedisModule } from './redis/redis.module.js'
 import { BullModule } from '@nestjs/bull'
@@ -27,13 +26,14 @@ import { REDIS_HOST, REDIS_PORT } from './redis/redis.constants.js'
 import { QueuesModule } from './queues/queues.module.js'
 import { CronModule } from './cron/cron.module.js'
 import { ScheduleModule } from '@nestjs/schedule'
+import { avatarCleanupConfig } from './configs/avatar-cleanup.config.js'
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       validate: (config) => envSchema.parse(config),
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig],
+      load: [appConfig, databaseConfig, jwtConfig, avatarCleanupConfig],
     }),
     LoggerModule.forRootAsync({
       imports: [ConfigModule],
@@ -41,6 +41,8 @@ import { ScheduleModule } from '@nestjs/schedule'
       useFactory: (config: ConfigService) => ({
         pinoHttp: {
           level: config.get(LOG_LEVEL),
+          redact: ['req.headers.authorization'],
+          customProps: (req) => ({ requestId: req.id }),
           genReqId: (req, res) => {
             const existingID = req.id ?? req.headers['x-request-id']
 
@@ -89,7 +91,7 @@ import { ScheduleModule } from '@nestjs/schedule'
     QueuesModule,
     CronModule,
   ],
-  controllers: [AppController, AvatarsController],
+  controllers: [AppController],
   providers: [
     AppService,
     {

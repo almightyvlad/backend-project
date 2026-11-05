@@ -29,6 +29,33 @@ export class AvatarsRepository {
       .executeTakeFirstOrThrow()
   }
 
+  async createWithLimit(avatar: Insertable<AvatarsTable>) {
+    return await this.db.transaction().execute(async (trx) => {
+      await trx
+        .selectFrom('users')
+        .select('id')
+        .where('id', '=', avatar.user_id)
+        .where('deleted_at', 'is', null)
+        .forUpdate()
+        .executeTakeFirstOrThrow()
+
+      const result = await trx
+        .selectFrom('avatars')
+        .select((eb) => eb.fn.countAll().as('total'))
+        .where('user_id', '=', avatar.user_id)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirstOrThrow()
+
+      if (Number(result.total) >= 5) return undefined
+
+      return await trx
+        .insertInto('avatars')
+        .values(avatar)
+        .returningAll()
+        .executeTakeFirstOrThrow()
+    })
+  }
+
   async findActiveById(id: number, userId: number) {
     return await this.db
       .selectFrom('avatars')

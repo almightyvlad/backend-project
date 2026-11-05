@@ -48,6 +48,7 @@ export class UsersService {
       password: await hashPassword(user.password),
     })
 
+    await this.redisService.delPattern('users:*')
     return this.tokensService.issueTokens(createdUser.id)
   }
 
@@ -96,11 +97,14 @@ export class UsersService {
       updatedUser.password = await hashPassword(user.password)
     }
 
-    return this.repository.updateUser(
+    const result = await this.repository.updateUser(
       currentUserId,
       updatedUser,
       passwordChanged,
     )
+    await this.redisService.del(`user:${currentUserId}`)
+    await this.redisService.delPattern('users:*')
+    return result
   }
 
   async softDeleteUser(currentUserId: number) {
@@ -113,6 +117,8 @@ export class UsersService {
     }
 
     await this.avatarsService.deleteAllByUserId(currentUserId)
+    await this.redisService.del(`user:${currentUserId}`)
+    await this.redisService.delPattern('users:*')
   }
 
   async getActiveUsers(
@@ -125,6 +131,15 @@ export class UsersService {
   }
 
   async transfer(transfer: TransferDto, senderId: number) {
-    return await this.repository.transfer(transfer, senderId)
+    const result = await this.repository.transfer(transfer, senderId)
+    this.logger.info(
+      {
+        senderId,
+        recipientId: transfer.recipientId,
+        amount: transfer.amount,
+      },
+      'Balance transfer completed',
+    )
+    return result
   }
 }

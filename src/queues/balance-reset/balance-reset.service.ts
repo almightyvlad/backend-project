@@ -14,6 +14,12 @@ export class BalanceResetService {
   ) {}
 
   add() {
-    return this.balanceResetQueue.add(BALANCE_RESET_JOB)
+    return this.balanceResetQueue.add(BALANCE_RESET_JOB, undefined, {
+      jobId: 'balance-reset',
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 1000 },
+      removeOnComplete: true,
+      removeOnFail: false,
+    })
   }
 }

@@ -59,6 +59,8 @@ describe('UsersService', () => {
           useValue: {
             get: vi.fn().mockResolvedValue(null),
             set: vi.fn().mockResolvedValue('OK'),
+            del: vi.fn().mockResolvedValue(1),
+            delPattern: vi.fn().mockResolvedValue(0),
           },
         },
         {
