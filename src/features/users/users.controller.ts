@@ -1,15 +1,35 @@
-import { Body, Controller, Delete, Get, Patch, Post, Query, Req } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common'
 import { UsersService } from './users.service.js'
 import { CreateUserDto } from './dto/create-user.dto.js'
 import { UpdateUserDto } from './dto/update-user.dto.js'
 import type { AuthenticatedRequest } from '../../auth/types/authenticated-request.js'
-import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiUnauthorizedResponse } from '@nestjs/swagger'
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger'
 import { GetUsersQueryDto } from './dto/get-users-query.dto.js'
 import { Public } from '../../auth/decorators/public.decorator.js'
+import { GetActiveUsersQueryDto } from './dto/get-active-users-query.dto.js'
+import { TransferDto } from './dto/transfer.dto.js'
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @ApiOperation({ summary: 'Get users' })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
@@ -27,13 +47,8 @@ export class UsersController {
   @ApiBearerAuth()
   @Get()
   getUsers(@Query() query: GetUsersQueryDto) {
-    return this.usersService.getUsers(
-      query.page,
-      query.limit,
-      query.login,
-    )
+    return this.usersService.getUsers(query.page, query.limit, query.login)
   }
-
 
   @ApiOperation({ summary: 'Register a user' })
   @ApiCreatedResponse({ description: 'User registered successfully' })
@@ -65,9 +80,25 @@ export class UsersController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid access token' })
   @ApiBearerAuth()
   @Delete('me')
-  softDeleteUser(
+  softDeleteUser(@Req() request: AuthenticatedRequest) {
+    return this.usersService.softDeleteUser(request.user.sub)
+  }
+
+  @Get('active')
+  getActiveUsers(@Query() query: GetActiveUsersQueryDto) {
+    return this.usersService.getActiveUsers(
+      query.minAge,
+      query.maxAge,
+      query.page,
+      query.limit,
+    )
+  }
+
+  @Post('transfer')
+  transfer(
+    @Body() transfer: TransferDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.usersService.softDeleteUser(request.user.sub)
+    return this.usersService.transfer(transfer, request.user.sub)
   }
 }

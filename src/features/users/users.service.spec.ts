@@ -6,6 +6,10 @@ import { UsersService } from './users.service.js'
 import { UsersRepository } from './users.repository.js'
 import { BCRYPT_SALT_ROUNDS } from '../../auth/auth.constants.js'
 import { TokensService } from '../../auth/tokens.service.js'
+import { ClsService } from 'nestjs-cls'
+import { PinoLogger } from 'nestjs-pino'
+import { RedisService } from '../../redis/redis.service.js'
+import { AvatarsService } from '../../avatars/avatars.service.js'
 
 describe('UsersService', () => {
   let service: UsersService
@@ -31,6 +35,38 @@ describe('UsersService', () => {
           provide: TokensService,
           useValue: {
             issueTokens: vi.fn(),
+          },
+        },
+        {
+          provide: ClsService,
+          useValue: {
+            get: vi.fn(),
+            set: vi.fn(),
+          },
+        },
+        {
+          provide: PinoLogger,
+          useValue: {
+            setContext: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            debug: vi.fn(),
+          },
+        },
+        {
+          provide: RedisService,
+          useValue: {
+            get: vi.fn().mockResolvedValue(null),
+            set: vi.fn().mockResolvedValue('OK'),
+            del: vi.fn().mockResolvedValue(1),
+            delPattern: vi.fn().mockResolvedValue(0),
+          },
+        },
+        {
+          provide: AvatarsService,
+          useValue: {
+            deleteAllByUserId: vi.fn(),
           },
         },
       ],
@@ -95,10 +131,7 @@ describe('UsersService', () => {
 
     await expect(service.createUser(user)).resolves.toEqual(tokens)
 
-    expect(bcrypt.hash).toHaveBeenCalledWith(
-      'password123',
-      BCRYPT_SALT_ROUNDS,
-    )
+    expect(bcrypt.hash).toHaveBeenCalledWith('password123', BCRYPT_SALT_ROUNDS)
 
     expect(repository.createUser).toHaveBeenCalledWith({
       ...user,
@@ -111,8 +144,8 @@ describe('UsersService', () => {
   it('should throw UnauthorizedException when the user is not found by login', async () => {
     vi.mocked(repository.findByLogin).mockResolvedValue(null as never)
 
-    await expect(
-      service.findByLogin('unknown'),
-    ).rejects.toThrow(UnauthorizedException)
+    await expect(service.findByLogin('unknown')).rejects.toThrow(
+      UnauthorizedException,
+    )
   })
 })

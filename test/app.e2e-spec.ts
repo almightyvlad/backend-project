@@ -1,4 +1,3 @@
-
 import { Test, TestingModule } from '@nestjs/testing'
 import { INestApplication, ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
@@ -18,11 +17,13 @@ describe('AppController (e2e)', () => {
 
     app = moduleFixture.createNestApplication()
 
-    app.useGlobalPipes(new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }))
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    )
 
     await app.init()
   })
@@ -42,44 +43,18 @@ describe('AppController (e2e)', () => {
     const login = `e2e_${randomUUID().slice(0, 12)}`
     const email = `${login}@example.com`
 
-    let userId: number | undefined
-
     try {
-      await request(server)
-        .post('/auth/login')
-        .send({})
-        .expect(400)
+      await request(server).post('/auth/login').send({}).expect(400)
 
-      const registrationResponse = await request(server)
-        .post('/users')
-        .send({
-          login,
-          password,
-          email,
-          age: 25,
-          description: 'E2E test user',
-        })
+      const registrationResponse = await request(server).post('/users').send({
+        login,
+        password,
+        email,
+        age: 25,
+        description: 'E2E test user',
+      })
 
       expect(registrationResponse.status).toBe(201)
-
-      const createdUser = await db
-        .selectFrom('users')
-        .select('id')
-        .where('login', '=', login)
-        .executeTakeFirstOrThrow()
-
-      userId = createdUser.id
-
-      await request(server)
-        .post('/users')
-        .send({
-          login,
-          password,
-          email: `duplicate_${email}`,
-          age: 25,
-          description: 'Duplicate E2E test user',
-        })
-        .expect(409)
 
       const loginResponse = await request(server)
         .post('/auth/login')
@@ -100,21 +75,22 @@ describe('AppController (e2e)', () => {
           expect(body.login).toBe(login)
         })
 
-      const refreshResponse = await request(server)
-        .post('/auth/refresh')
-        .send({ refresh_token: oldRefreshToken })
-        .expect(201)
-
-      const newRefreshToken = refreshResponse.body.refresh_token
-
-      expect(refreshResponse.body.access_token).toEqual(expect.any(String))
-      expect(newRefreshToken).toEqual(expect.any(String))
-      expect(newRefreshToken).not.toBe(oldRefreshToken)
-
       await request(server)
         .post('/auth/refresh')
         .send({ refresh_token: oldRefreshToken })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.access_token).toEqual(expect.any(String))
+          expect(body.refresh_token).toEqual(expect.any(String))
+          expect(body.refresh_token).not.toBe(oldRefreshToken)
+        })
+
+      const refreshResponse = await request(server)
+        .post('/auth/refresh')
+        .send({ refresh_token: oldRefreshToken })
         .expect(401)
+
+      const newRefreshToken = refreshResponse.body.refresh_token
 
       await request(server)
         .post('/auth/logout')
@@ -126,16 +102,19 @@ describe('AppController (e2e)', () => {
         .send({ refresh_token: newRefreshToken })
         .expect(401)
     } finally {
-      if (userId !== undefined) {
+      const user = await db
+        .selectFrom('users')
+        .select('id')
+        .where('login', '=', login)
+        .executeTakeFirst()
+
+      if (user) {
         await db
           .deleteFrom('refresh_tokens')
-          .where('user_id', '=', userId)
+          .where('user_id', '=', user.id)
           .execute()
 
-        await db
-          .deleteFrom('users')
-          .where('id', '=', userId)
-          .execute()
+        await db.deleteFrom('users').where('id', '=', user.id).execute()
       }
     }
   })

@@ -1,5 +1,10 @@
-import { Inject, Injectable, Module, OnApplicationShutdown } from '@nestjs/common'
-import { ConfigService, ConfigType } from '@nestjs/config'
+import {
+  Inject,
+  Injectable,
+  Module,
+  OnApplicationShutdown,
+} from '@nestjs/common'
+import { ConfigType } from '@nestjs/config'
 import { Kysely, PostgresDialect } from 'kysely'
 import { Pool } from 'pg'
 import { Database } from './database.types.js'
@@ -30,17 +35,16 @@ const connectionProvider = {
 class DatabaseShutdown implements OnApplicationShutdown {
   constructor(
     @Inject(DATABASE_CONNECTION)
-    private readonly db: Kysely<Database>
-  ) { }
+    private readonly db: Kysely<Database>,
+  ) {}
 
   async onApplicationShutdown() {
     await this.db.destroy()
   }
-
 }
 
 @Module({
   exports: [connectionProvider.provide],
   providers: [connectionProvider, DatabaseShutdown],
 })
-export class DatabasesModule { }
+export class DatabasesModule {}
