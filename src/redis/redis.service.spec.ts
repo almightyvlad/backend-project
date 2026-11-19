@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { ConfigService } from '@nestjs/config'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Redis } from 'ioredis'
 import { RedisService } from './redis.service.js'
-import { REDIS_HOST, REDIS_PORT } from './redis.constants.js'
+import { redisConfig } from '../configs/redis.config.js'
+import { USERS_CACHE_TTL_SECONDS } from './redis.constants.js'
 
 const { redisMock } = vi.hoisted(() => ({
   redisMock: {
@@ -31,12 +31,11 @@ describe('RedisService', () => {
       providers: [
         RedisService,
         {
-          provide: ConfigService,
+          provide: redisConfig.KEY,
           useValue: {
-            getOrThrow: vi.fn((key: string) => {
-              if (key === REDIS_HOST) return 'localhost'
-              if (key === REDIS_PORT) return 6379
-            }),
+            host: 'localhost',
+            port: 6379,
+            usersCacheTtlSeconds: USERS_CACHE_TTL_SECONDS,
           },
         },
       ],
@@ -85,6 +84,21 @@ describe('RedisService', () => {
     expect(result).toBe('test-value')
   })
 
+  it('should parse JSON cache with a type guard', async () => {
+    redisMock.get.mockResolvedValue(JSON.stringify({ id: 1 }))
+
+    const result = await service.getJson(
+      'user:1',
+      (value: unknown): value is { id: number } =>
+        typeof value === 'object' &&
+        value !== null &&
+        'id' in value &&
+        typeof value.id === 'number',
+    )
+
+    expect(result).toEqual({ id: 1 })
+  })
+
   it('should set value with expiration', async () => {
     redisMock.set.mockResolvedValue('OK')
 
@@ -94,7 +108,7 @@ describe('RedisService', () => {
       'test-key',
       'test-value',
       'EX',
-      30,
+      USERS_CACHE_TTL_SECONDS,
     )
     expect(result).toBe('OK')
   })

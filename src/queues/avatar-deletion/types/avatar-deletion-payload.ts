@@ -1,4 +1,5 @@
 export interface AvatarDeletionPayload {
-  id: number
+  id?: number
   objectKey: string
+  requestId: string
 }

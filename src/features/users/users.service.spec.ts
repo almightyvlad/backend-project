@@ -9,7 +9,6 @@ import { TokensService } from '../../auth/tokens.service.js'
 import { ClsService } from 'nestjs-cls'
 import { PinoLogger } from 'nestjs-pino'
 import { RedisService } from '../../redis/redis.service.js'
-import { AvatarsService } from '../../avatars/avatars.service.js'
 
 describe('UsersService', () => {
   let service: UsersService
@@ -58,15 +57,11 @@ describe('UsersService', () => {
           provide: RedisService,
           useValue: {
             get: vi.fn().mockResolvedValue(null),
+            getJson: vi.fn().mockResolvedValue(null),
             set: vi.fn().mockResolvedValue('OK'),
+            setJson: vi.fn().mockResolvedValue('OK'),
             del: vi.fn().mockResolvedValue(1),
             delPattern: vi.fn().mockResolvedValue(0),
-          },
-        },
-        {
-          provide: AvatarsService,
-          useValue: {
-            deleteAllByUserId: vi.fn(),
           },
         },
       ],

@@ -3,11 +3,13 @@ import { AvatarDeletionService } from './avatar-deletion/avatar-deletion.service
 import { BullModule } from '@nestjs/bull'
 import { AVATAR_DELETION_QUEUE } from './avatar-deletion/avatar-deletion.constants.js'
 import { AvatarDeletionProcessor } from './avatar-deletion/avatar-deletion.processor.js'
+import { AvatarCleanupProcessor } from './avatar-deletion/avatar-cleanup.processor.js'
 import { StorageModule } from '../storage/storage.module.js'
 import { DatabasesModule } from '../databases/databases.module.js'
 import { BALANCE_RESET_QUEUE } from './balance-reset/balance-reset.constants.js'
 import { BalanceResetService } from './balance-reset/balance-reset.service.js'
 import { AvatarDeletionRepository } from './avatar-deletion/avatar-deletion.repository.js'
+import { AvatarsRepository } from '../avatars/avatars.repository.js'
 
 @Module({
   imports: [
@@ -23,7 +25,9 @@ import { AvatarDeletionRepository } from './avatar-deletion/avatar-deletion.repo
   providers: [
     AvatarDeletionService,
     AvatarDeletionProcessor,
+    AvatarCleanupProcessor,
     AvatarDeletionRepository,
+    AvatarsRepository,
     BalanceResetService,
   ],
   exports: [AvatarDeletionService, BalanceResetService],

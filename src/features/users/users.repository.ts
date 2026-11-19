@@ -152,6 +152,13 @@ export class UsersRepository {
 
       await trx.deleteFrom('refresh_tokens').where('user_id', '=', id).execute()
 
+      await trx
+        .updateTable('avatars')
+        .set({ deleted_at: new Date() })
+        .where('user_id', '=', id)
+        .where('deleted_at', 'is', null)
+        .execute()
+
       return true
     })
   }
@@ -203,6 +210,7 @@ export class UsersRepository {
           'latest_avatars.avatar_object_key',
           'latest_avatars.avatar_uploaded_at',
         ])
+        .orderBy('active_users.id')
         .offset((page - 1) * limit)
         .limit(limit)
         .execute(),
@@ -234,6 +242,7 @@ export class UsersRepository {
         .select(['id', 'balance'])
         .where('deleted_at', 'is', null)
         .where('id', 'in', arr)
+        .orderBy('id')
         .forUpdate()
         .execute()
 

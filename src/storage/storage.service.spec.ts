@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { ConfigService } from '@nestjs/config'
 import {
   DeleteObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
 import { StorageService } from './storage.service.js'
+import { storageConfig } from '../configs/storage.config.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('StorageService', () => {
@@ -23,9 +23,9 @@ describe('StorageService', () => {
           },
         },
         {
-          provide: ConfigService,
+          provide: storageConfig.KEY,
           useValue: {
-            getOrThrow: vi.fn().mockReturnValue('test-bucket'),
+            bucket: 'test-bucket',
           },
         },
       ],

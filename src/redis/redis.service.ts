@@ -1,16 +1,25 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
+import {
+  Inject,
+  Injectable,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common'
+import type { ConfigType } from '@nestjs/config'
 import { Redis } from 'ioredis'
-import { REDIS_HOST, REDIS_PORT } from './redis.constants.js'
+import { redisConfig } from '../configs/redis.config.js'
+import { parseCachedValue } from './typed-cache.js'
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly redis: Redis
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    @Inject(redisConfig.KEY)
+    private readonly config: ConfigType<typeof redisConfig>,
+  ) {
     this.redis = new Redis({
-      port: configService.getOrThrow(REDIS_PORT),
-      host: configService.getOrThrow(REDIS_HOST),
+      port: this.config.port,
+      host: this.config.host,
     })
   }
 
@@ -26,8 +35,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return await this.redis.get(key)
   }
 
+  async getJson<T>(
+    key: string,
+    isValid: (value: unknown) => value is T,
+  ): Promise<T | null> {
+    return parseCachedValue(await this.get(key), isValid)
+  }
+
   async set(key: string, value: string) {
-    return await this.redis.set(key, value, 'EX', 30)
+    return await this.redis.set(
+      key,
+      value,
+      'EX',
+      this.config.usersCacheTtlSeconds,
+    )
+  }
+
+  async setJson(key: string, value: unknown) {
+    return await this.set(key, JSON.stringify(value))
   }
 
   async del(key: string) {

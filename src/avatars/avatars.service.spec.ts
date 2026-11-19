@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino'
 import { AvatarsService } from './avatars.service.js'
 import { AvatarsRepository } from './avatars.repository.js'
 import { StorageService } from '../storage/storage.service.js'
+import { AvatarDeletionService } from '../queues/avatar-deletion/avatar-deletion.service.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('file-type', () => ({
@@ -15,6 +16,7 @@ describe('AvatarsService', () => {
   let avatarsRepository: AvatarsRepository
   let storageService: StorageService
   let logger: PinoLogger
+  let avatarDeletionService: AvatarDeletionService
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -26,7 +28,6 @@ describe('AvatarsService', () => {
             createWithLimit: vi.fn(),
             findActiveById: vi.fn(),
             softDelete: vi.fn(),
-            softDeleteAllByUserId: vi.fn(),
           },
         },
         {
@@ -44,6 +45,12 @@ describe('AvatarsService', () => {
             error: vi.fn(),
           },
         },
+        {
+          provide: AvatarDeletionService,
+          useValue: {
+            add: vi.fn(),
+          },
+        },
       ],
     }).compile()
 
@@ -51,6 +58,9 @@ describe('AvatarsService', () => {
     avatarsRepository = module.get<AvatarsRepository>(AvatarsRepository)
     storageService = module.get<StorageService>(StorageService)
     logger = module.get<PinoLogger>(PinoLogger)
+    avatarDeletionService = module.get<AvatarDeletionService>(
+      AvatarDeletionService,
+    )
   })
 
   it('should be defined', () => {
@@ -121,7 +131,7 @@ describe('AvatarsService', () => {
       expect(logger.error).not.toHaveBeenCalled()
     })
 
-    it('should log cleanup error when deleting uploaded file fails', async () => {
+    it('should queue orphan deletion when compensating MinIO delete fails', async () => {
       const error = new Error('Database error')
 
       vi.mocked(avatarsRepository.createWithLimit).mockImplementation(
@@ -136,6 +146,10 @@ describe('AvatarsService', () => {
       await expect(service.uploadAvatar(userId, file)).rejects.toThrow(error)
 
       expect(logger.error).toHaveBeenCalledOnce()
+      expect(avatarDeletionService.add).toHaveBeenCalledWith(
+        undefined,
+        expect.any(String),
+      )
     })
   })
 
@@ -180,31 +194,6 @@ describe('AvatarsService', () => {
       await expect(service.deleteAvatar(avatar.id, 1)).rejects.toThrow(
         NotFoundException,
       )
-    })
-  })
-
-  describe('deleteAllByUserId', () => {
-    it('should soft delete all avatars without queueing immediate deletion', async () => {
-      const avatars = [
-        { id: 1, object_key: 'key-1' },
-        { id: 2, object_key: 'key-2' },
-      ]
-
-      vi.mocked(avatarsRepository.softDeleteAllByUserId).mockResolvedValue(
-        avatars as never,
-      )
-
-      const result = await service.deleteAllByUserId(1)
-
-      expect(result).toBe(2)
-    })
-
-    it('should return 0 when user has no avatars', async () => {
-      vi.mocked(avatarsRepository.softDeleteAllByUserId).mockResolvedValue([])
-
-      const result = await service.deleteAllByUserId(1)
-
-      expect(result).toBe(0)
     })
   })
 })

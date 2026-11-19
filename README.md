@@ -75,7 +75,19 @@ npm run migrate
 npm run start:dev
 ```
 
-HTTP API, Bull processors и cron задачи работают в одном процессе NestJS. Отдельный процесс worker в текущей конфигурации не запускается. API: <http://localhost:3000>; Swagger: <http://localhost:3000/api>.
+HTTP API, Bull processors и cron задачи работают в одном процессе NestJS. `npm run start:dev` параллельно запускает API в watch-режиме и `npm run lint:watch` — oxlint при изменении файлов в `src/` и `test/`. Отдельный процесс worker в текущей конфигурации не запускается. API: <http://localhost:3000>; Swagger: <http://localhost:3000/api>.
+
+Только приложение, без lint watcher:
+
+```bash
+npx nest start --watch
+```
+
+Только линтер на изменениях:
+
+```bash
+npm run lint:watch
+```
 
 Для production:
 
@@ -120,15 +132,14 @@ npm run start:prod
 | `POST`   | `/users/transfer`  | Перевод баланса                          | Access token |
 | `POST`   | `/avatars`         | Загрузка аватара, multipart поле `file`  | Access token |
 | `DELETE` | `/avatars/:id`     | Soft delete своего аватара               | Access token |
-| `POST`   | `/avatars/cleanup` | Поставить просроченные аватары в очередь | Access token |
-| `POST`   | `/balance-reset`   | Поставить обнуление балансов в очередь   | Access token |
+| `POST`   | `/avatars/cleanup` | Поставить одну задачу очистки в очередь  | Access token |
 
 Точные схемы запросов, ограничения и ответы доступны в Swagger UI.
 
 ## Фоновые задачи и логи
 
-- Cron по `AVATAR_CLEANUP_CRON` ищет soft-deleted аватары старше `AVATAR_CLEANUP_RETENTION_DAYS` и ставит их в Bull queue.
-- `POST /avatars/cleanup` запускает ту же постановку jobs вручную и сразу возвращает ответ.
+- Cron по `AVATAR_CLEANUP_CRON` и `POST /avatars/cleanup` ставят **одну** задачу очистки в Bull. Processor сам находит soft-deleted аватары старше `AVATAR_CLEANUP_RETENTION_DAYS` и ставит deletion-job на каждый файл.
+- HTTP-роут сброса балансов убран; обнуление ставит только cron.
 - Worker сначала удаляет объект из MinIO, затем удаляет запись БД. Ошибка удаления файла оставляет запись для повтора Bull.
 - Сброс балансов ставится в Bull queue; фиксированный job id предотвращает одновременную постановку одинаковой ожидающей задачи. Само обнуление идемпотентно.
 - Pino пишет структурированные логи начала, результата и ошибок фоновых задач. Заголовок `Authorization`, пароли и токены не должны попадать в логи.
@@ -151,7 +162,7 @@ npm run lint
 npm run build
 ```
 
-Pre-commit hook запускает `lint-staged` для staged файлов.
+Pre-commit hook запускает `lint-staged` для staged файлов. Во время разработки `npm run start:dev` дополнительно гоняет oxlint при каждом изменении исходников.
 
 ## Структура проекта
 

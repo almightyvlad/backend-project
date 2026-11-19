@@ -3,9 +3,11 @@ import { getQueueToken } from '@nestjs/bull'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AvatarDeletionService } from './avatar-deletion.service.js'
 import {
+  AVATAR_CLEANUP_JOB,
   AVATAR_DELETION_JOB,
   AVATAR_DELETION_QUEUE,
 } from './avatar-deletion.constants.js'
+import { ClsService } from 'nestjs-cls'
 
 describe('AvatarDeletionService', () => {
   let service: AvatarDeletionService
@@ -23,6 +25,13 @@ describe('AvatarDeletionService', () => {
         {
           provide: getQueueToken(AVATAR_DELETION_QUEUE),
           useValue: queueMock,
+        },
+        {
+          provide: ClsService,
+          useValue: {
+            isActive: vi.fn().mockReturnValue(true),
+            get: vi.fn().mockReturnValue('req-1'),
+          },
         },
       ],
     }).compile()
@@ -48,6 +57,7 @@ describe('AvatarDeletionService', () => {
       {
         id: 1,
         objectKey: 'avatars/test.png',
+        requestId: 'req-1',
       },
       {
         attempts: 5,
@@ -58,6 +68,18 @@ describe('AvatarDeletionService', () => {
         removeOnComplete: true,
         removeOnFail: false,
       },
+    )
+  })
+
+  it('should add a single cleanup job', async () => {
+    queueMock.add.mockResolvedValue({ id: 'cleanup' })
+
+    await service.addCleanup()
+
+    expect(queueMock.add).toHaveBeenCalledWith(
+      AVATAR_CLEANUP_JOB,
+      { requestId: 'req-1' },
+      expect.objectContaining({ attempts: 5 }),
     )
   })
 

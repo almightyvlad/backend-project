@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import { Insertable, Kysely } from 'kysely'
 import { AvatarsTable, Database } from '../databases/database.types.js'
 import { DATABASE_CONNECTION } from '../databases/databases.contants.js'
+import { AVATAR_MAX_ACTIVE_COUNT } from './avatars.constants.js'
 
 @Injectable()
 export class AvatarsRepository {
@@ -46,7 +47,7 @@ export class AvatarsRepository {
         .where('deleted_at', 'is', null)
         .executeTakeFirstOrThrow()
 
-      if (Number(result.total) >= 5) return undefined
+      if (Number(result.total) >= AVATAR_MAX_ACTIVE_COUNT) return undefined
 
       return await trx
         .insertInto('avatars')

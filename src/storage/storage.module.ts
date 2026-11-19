@@ -1,27 +1,22 @@
 import { Module } from '@nestjs/common'
-import { ConfigModule, ConfigService } from '@nestjs/config'
+import { ConfigModule, ConfigType } from '@nestjs/config'
 import { S3Client } from '@aws-sdk/client-s3'
-import {
-  MINIO_ENDPOINT,
-  MINIO_REGION,
-  MINIO_ROOT_PASSWORD,
-  MINIO_ROOT_USER,
-} from './storage.constants.js'
+import { storageConfig } from '../configs/storage.config.js'
 import { StorageService } from './storage.service.js'
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule.forFeature(storageConfig)],
   providers: [
     {
       provide: S3Client,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
+      inject: [storageConfig.KEY],
+      useFactory: (config: ConfigType<typeof storageConfig>) => {
         return new S3Client({
-          endpoint: config.getOrThrow<string>(MINIO_ENDPOINT),
-          region: config.getOrThrow<string>(MINIO_REGION),
+          endpoint: config.endpoint,
+          region: config.region,
           credentials: {
-            accessKeyId: config.getOrThrow<string>(MINIO_ROOT_USER),
-            secretAccessKey: config.getOrThrow<string>(MINIO_ROOT_PASSWORD),
+            accessKeyId: config.accessKey,
+            secretAccessKey: config.secretKey,
           },
           forcePathStyle: true,
         })

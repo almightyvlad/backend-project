@@ -75,22 +75,21 @@ describe('AppController (e2e)', () => {
           expect(body.login).toBe(login)
         })
 
-      await request(server)
-        .post('/auth/refresh')
-        .send({ refresh_token: oldRefreshToken })
-        .expect(201)
-        .expect(({ body }) => {
-          expect(body.access_token).toEqual(expect.any(String))
-          expect(body.refresh_token).toEqual(expect.any(String))
-          expect(body.refresh_token).not.toBe(oldRefreshToken)
-        })
-
       const refreshResponse = await request(server)
         .post('/auth/refresh')
         .send({ refresh_token: oldRefreshToken })
-        .expect(401)
+        .expect(201)
 
-      const newRefreshToken = refreshResponse.body.refresh_token
+      const newRefreshToken = refreshResponse.body.refresh_token as string
+
+      expect(refreshResponse.body.access_token).toEqual(expect.any(String))
+      expect(newRefreshToken).toEqual(expect.any(String))
+      expect(newRefreshToken).not.toBe(oldRefreshToken)
+
+      await request(server)
+        .post('/auth/refresh')
+        .send({ refresh_token: oldRefreshToken })
+        .expect(401)
 
       await request(server)
         .post('/auth/logout')

@@ -23,7 +23,7 @@ describe('AvatarsController', () => {
         },
         {
           provide: AvatarCleanupService,
-          useValue: { queueExpiredDeleted: vi.fn() },
+          useValue: { enqueueCleanup: vi.fn() },
         },
       ],
     }).compile()

@@ -4,11 +4,15 @@ import { ValidationPipe } from '@nestjs/common'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { ConfigService } from '@nestjs/config'
 import { Logger } from 'nestjs-pino'
+import { ClsService } from 'nestjs-cls'
+import { randomUUID } from 'crypto'
+import { REQUEST_ID_KEY } from './common/request-context.js'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true })
 
   const logger = app.get(Logger)
+  const cls = app.get(ClsService)
 
   app.useLogger(logger)
 
@@ -36,8 +40,10 @@ async function bootstrap() {
 
   const port = configService.get<number>('PORT', 3000)
 
-  await app.listen(port)
-
-  logger.log(`Application started on PORT: ${port}`)
+  await cls.run(async () => {
+    cls.set(REQUEST_ID_KEY, randomUUID())
+    await app.listen(port)
+    logger.log(`Application started on PORT: ${port}`)
+  })
 }
 await bootstrap()

@@ -6,10 +6,12 @@ import type { AvatarDeletionPayload } from './types/avatar-deletion-payload.js'
 import type { Job } from 'bull'
 import { AvatarDeletionRepository } from './avatar-deletion.repository.js'
 import { PinoLogger } from 'nestjs-pino'
+import { ClsService } from 'nestjs-cls'
 
 describe('AvatarDeletionProcessor', () => {
   let processor: AvatarDeletionProcessor
   let avatarDeletionRepository: AvatarDeletionRepository
+  let cls: ClsService
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -27,7 +29,14 @@ describe('AvatarDeletionProcessor', () => {
         },
         {
           provide: PinoLogger,
-          useValue: { info: vi.fn(), error: vi.fn() },
+          useValue: { setContext: vi.fn(), info: vi.fn(), error: vi.fn() },
+        },
+        {
+          provide: ClsService,
+          useValue: {
+            run: vi.fn(async (fn: () => Promise<void>) => fn()),
+            set: vi.fn(),
+          },
         },
       ],
     }).compile()
@@ -36,6 +45,7 @@ describe('AvatarDeletionProcessor', () => {
     avatarDeletionRepository = module.get<AvatarDeletionRepository>(
       AvatarDeletionRepository,
     )
+    cls = module.get<ClsService>(ClsService)
     vi.clearAllMocks()
   })
 
@@ -56,17 +66,36 @@ describe('AvatarDeletionProcessor', () => {
       data: {
         id: 1,
         objectKey: 'avatars/test.png',
+        requestId: 'req-1',
       },
     } as Job<AvatarDeletionPayload>
 
     await processor.process(job)
 
+    expect(cls.set).toHaveBeenCalledWith('requestId', 'req-1')
     expect(deleteFile).toHaveBeenCalledWith('avatars/test.png')
     expect(deleteFile).toHaveBeenCalledOnce()
     expect(avatarDeletionRepository.hardDelete).toHaveBeenCalledWith(
       1,
       'avatars/test.png',
     )
+  })
+
+  it('should skip database delete for orphan files', async () => {
+    const deleteFile = vi.mocked(processor['storageService'].deleteFile)
+    deleteFile.mockResolvedValue(undefined)
+
+    const job = {
+      data: {
+        objectKey: 'avatars/orphan.png',
+        requestId: 'req-1',
+      },
+    } as Job<AvatarDeletionPayload>
+
+    await processor.process(job)
+
+    expect(deleteFile).toHaveBeenCalledWith('avatars/orphan.png')
+    expect(avatarDeletionRepository.hardDelete).not.toHaveBeenCalled()
   })
 
   it('should throw error if storage deletion fails', async () => {
@@ -80,6 +109,7 @@ describe('AvatarDeletionProcessor', () => {
       data: {
         id: 1,
         objectKey: 'avatars/test.png',
+        requestId: 'req-1',
       },
     } as Job<AvatarDeletionPayload>
 

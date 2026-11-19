@@ -3,22 +3,23 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
-import { Injectable, OnApplicationShutdown } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
-import { MINIO_BUCKET } from './storage.constants.js'
+import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common'
+import type { ConfigType } from '@nestjs/config'
+import { storageConfig } from '../configs/storage.config.js'
 
 @Injectable()
 export class StorageService implements OnApplicationShutdown {
   constructor(
     private readonly s3Client: S3Client,
-    private readonly configService: ConfigService,
+    @Inject(storageConfig.KEY)
+    private readonly config: ConfigType<typeof storageConfig>,
   ) {}
 
   async uploadFile(file: Express.Multer.File, objectkey: string) {
     const input = {
       Body: file.buffer,
       ContentType: file.mimetype,
-      Bucket: this.configService.getOrThrow<string>(MINIO_BUCKET),
+      Bucket: this.config.bucket,
       Key: objectkey,
     }
 
@@ -29,7 +30,7 @@ export class StorageService implements OnApplicationShutdown {
 
   async deleteFile(objectkey: string) {
     const input = {
-      Bucket: this.configService.getOrThrow<string>(MINIO_BUCKET),
+      Bucket: this.config.bucket,
       Key: objectkey,
     }
 

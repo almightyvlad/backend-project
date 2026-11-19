@@ -12,7 +12,12 @@ import { hashPassword } from '../../auth/helpers/password.helper.js'
 import { PinoLogger } from 'nestjs-pino'
 import { RedisService } from '../../redis/redis.service.js'
 import { TransferDto } from './dto/transfer.dto.js'
-import { AvatarsService } from '../../avatars/avatars.service.js'
+import {
+  isCachedUser,
+  isCachedUsersPage,
+  userCacheKey,
+  usersListCacheKey,
+} from './users.cache.js'
 
 @Injectable()
 export class UsersService {
@@ -21,23 +26,21 @@ export class UsersService {
     private readonly tokensService: TokensService,
     private readonly redisService: RedisService,
     private readonly logger: PinoLogger,
-    private readonly avatarsService: AvatarsService,
   ) {
     this.logger.setContext(UsersService.name)
   }
 
   async getUsers(page: number, limit: number, login?: string) {
-    const key = `users:${page}:${limit}:${login ?? 'all'}`
+    const key = usersListCacheKey(page, limit, login)
+    const cached = await this.redisService.getJson(key, isCachedUsersPage)
 
-    const cache = await this.redisService.get(key)
-
-    if (cache !== null) {
-      return JSON.parse(cache)
+    if (cached !== null) {
+      return cached
     }
 
     const users = await this.repository.getUsers(page, limit, login)
 
-    await this.redisService.set(key, JSON.stringify(users))
+    await this.redisService.setJson(key, users)
 
     return users
   }
@@ -63,12 +66,11 @@ export class UsersService {
   }
 
   async findById(id: number) {
-    const key = `user:${id}`
+    const key = userCacheKey(id)
+    const cached = await this.redisService.getJson(key, isCachedUser)
 
-    const cache = await this.redisService.get(key)
-
-    if (cache !== null) {
-      return JSON.parse(cache)
+    if (cached !== null) {
+      return cached
     }
 
     const user = await this.repository.findById(id)
@@ -77,7 +79,7 @@ export class UsersService {
       throw new NotFoundException('User not found')
     }
 
-    await this.redisService.set(key, JSON.stringify(user))
+    await this.redisService.setJson(key, user)
 
     return user
   }
@@ -102,7 +104,7 @@ export class UsersService {
       updatedUser,
       passwordChanged,
     )
-    await this.redisService.del(`user:${currentUserId}`)
+    await this.redisService.del(userCacheKey(currentUserId))
     await this.redisService.delPattern('users:*')
     return result
   }
@@ -116,8 +118,7 @@ export class UsersService {
       throw new NotFoundException('User not found')
     }
 
-    await this.avatarsService.deleteAllByUserId(currentUserId)
-    await this.redisService.del(`user:${currentUserId}`)
+    await this.redisService.del(userCacheKey(currentUserId))
     await this.redisService.delPattern('users:*')
   }
 

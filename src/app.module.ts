@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 import { AppController } from './app.controller.js'
 import { AppService } from './app.service.js'
-import { ConfigModule, ConfigService } from '@nestjs/config'
+import { ConfigModule } from '@nestjs/config'
 import { envSchema } from './configs/env.validation.js'
 import { DatabasesModule } from './databases/databases.module.js'
 import { UsersModule } from './features/users/users.module.js'
@@ -14,35 +14,72 @@ import { jwtConfig } from './configs/jwt.config.js'
 import { AuthGuard } from './auth/auth.guard.js'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
 import { LoggerModule } from 'nestjs-pino'
-import { ClsModule } from 'nestjs-cls'
+import { ClsModule, ClsService } from 'nestjs-cls'
 import { randomUUID } from 'crypto'
-import { LOG_LEVEL } from './configs/env.constants.js'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js'
 import { StorageModule } from './storage/storage.module.js'
 import { AvatarsModule } from './avatars/avatars.module.js'
 import { RedisModule } from './redis/redis.module.js'
 import { BullModule } from '@nestjs/bull'
-import { REDIS_HOST, REDIS_PORT } from './redis/redis.constants.js'
 import { QueuesModule } from './queues/queues.module.js'
 import { CronModule } from './cron/cron.module.js'
 import { ScheduleModule } from '@nestjs/schedule'
 import { avatarCleanupConfig } from './configs/avatar-cleanup.config.js'
+import { loggerConfig } from './configs/logger.config.js'
+import { redisConfig } from './configs/redis.config.js'
+import { storageConfig } from './configs/storage.config.js'
+import { REQUEST_ID_KEY } from './common/request-context.js'
+import type { ConfigType } from '@nestjs/config'
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       validate: (config) => envSchema.parse(config),
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig, avatarCleanupConfig],
+      load: [
+        appConfig,
+        databaseConfig,
+        jwtConfig,
+        avatarCleanupConfig,
+        loggerConfig,
+        redisConfig,
+        storageConfig,
+      ],
+    }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: {
+        mount: true,
+        setup: (cls, req, res) => {
+          const header = req.headers['x-request-id']
+          const requestId =
+            typeof header === 'string' && header.length > 0
+              ? header
+              : randomUUID()
+
+          req.id = requestId
+          cls.set(REQUEST_ID_KEY, requestId)
+          res.setHeader('X-Request-Id', requestId)
+        },
+      },
     }),
     LoggerModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      inject: [loggerConfig.KEY, ClsService],
+      useFactory: (
+        config: ConfigType<typeof loggerConfig>,
+        cls: ClsService,
+      ) => ({
         pinoHttp: {
-          level: config.get(LOG_LEVEL),
+          level: config.level,
           redact: ['req.headers.authorization'],
-          customProps: (req) => ({ requestId: req.id }),
+          mixin: () => {
+            if (!cls.isActive()) {
+              return {}
+            }
+
+            const requestId = cls.get<string | undefined>(REQUEST_ID_KEY)
+            return requestId ? { requestId } : {}
+          },
           genReqId: (req, res) => {
             const existingID = req.id ?? req.headers['x-request-id']
 
@@ -52,30 +89,18 @@ import { avatarCleanupConfig } from './configs/avatar-cleanup.config.js'
             }
 
             const id = randomUUID()
-
             res.setHeader('X-Request-Id', id)
-
             return id
           },
         },
       }),
     }),
-    ClsModule.forRoot({
-      global: true,
-      middleware: {
-        mount: true,
-        setup: (cls, req) => {
-          cls.set('requestId', req.id)
-        },
-      },
-    }),
     BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+      inject: [redisConfig.KEY],
+      useFactory: (config: ConfigType<typeof redisConfig>) => ({
         redis: {
-          host: config.getOrThrow(REDIS_HOST),
-          port: config.getOrThrow<number>(REDIS_PORT),
+          host: config.host,
+          port: config.port,
         },
       }),
     }),
