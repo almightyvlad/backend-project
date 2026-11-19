@@ -9,7 +9,10 @@ import { StorageService } from '../storage/storage.service.js'
 import { randomUUID } from 'crypto'
 import { PinoLogger } from 'nestjs-pino'
 import { fileTypeFromBuffer } from 'file-type'
-import { isAllowedAvatarMimeType } from './avatars.constants.js'
+import {
+  AVATAR_MAX_ACTIVE_COUNT,
+  isAllowedAvatarMimeType,
+} from './avatars.constants.js'
 import { AvatarDeletionService } from '../queues/avatar-deletion/avatar-deletion.service.js'
 
 @Injectable()
@@ -46,7 +49,9 @@ export class AvatarsService {
 
     if (!avatar) {
       await this.compensateOrphanFile(objectKey)
-      throw new ConflictException('User has 5 or more avatars')
+      throw new ConflictException(
+        `User has ${AVATAR_MAX_ACTIVE_COUNT} or more avatars`,
+      )
     }
 
     this.logger.info({ userId, avatarId: avatar.id }, 'Avatar uploaded')

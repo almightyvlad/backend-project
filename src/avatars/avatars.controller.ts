@@ -81,8 +81,9 @@ export class AvatarsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Queue expired avatar cleanup' })
   @ApiOkResponse({ description: 'Cleanup job queued' })
-  queueCleanup() {
-    return this.avatarCleanupService.enqueueCleanup()
+  async queueCleanup() {
+    await this.avatarCleanupService.enqueueCleanup()
+    return { status: 'queued' }
   }
 
   @Delete(':id')

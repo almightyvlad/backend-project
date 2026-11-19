@@ -7,10 +7,16 @@ import type { Job } from 'bull'
 import { AvatarDeletionRepository } from './avatar-deletion.repository.js'
 import { PinoLogger } from 'nestjs-pino'
 import { ClsService } from 'nestjs-cls'
+import { AvatarsRepository } from '../../avatars/avatars.repository.js'
+import { AvatarDeletionService } from './avatar-deletion.service.js'
+import { avatarCleanupConfig } from '../../configs/avatar-cleanup.config.js'
+import type { AvatarCleanupPayload } from './types/avatar-cleanup-payload.js'
 
 describe('AvatarDeletionProcessor', () => {
   let processor: AvatarDeletionProcessor
   let avatarDeletionRepository: AvatarDeletionRepository
+  let avatarsRepository: AvatarsRepository
+  let avatarDeletionService: AvatarDeletionService
   let cls: ClsService
 
   beforeEach(async () => {
@@ -26,6 +32,18 @@ describe('AvatarDeletionProcessor', () => {
           useValue: {
             deleteFile: vi.fn(),
           },
+        },
+        {
+          provide: AvatarsRepository,
+          useValue: { findExpiredDeleted: vi.fn() },
+        },
+        {
+          provide: AvatarDeletionService,
+          useValue: { add: vi.fn() },
+        },
+        {
+          provide: avatarCleanupConfig.KEY,
+          useValue: { retentionDays: 7 },
         },
         {
           provide: PinoLogger,
@@ -44,6 +62,10 @@ describe('AvatarDeletionProcessor', () => {
     processor = module.get<AvatarDeletionProcessor>(AvatarDeletionProcessor)
     avatarDeletionRepository = module.get<AvatarDeletionRepository>(
       AvatarDeletionRepository,
+    )
+    avatarsRepository = module.get<AvatarsRepository>(AvatarsRepository)
+    avatarDeletionService = module.get<AvatarDeletionService>(
+      AvatarDeletionService,
     )
     cls = module.get<ClsService>(ClsService)
     vi.clearAllMocks()
@@ -115,5 +137,34 @@ describe('AvatarDeletionProcessor', () => {
 
     await expect(processor.process(job)).rejects.toThrow(error)
     expect(avatarDeletionRepository.hardDelete).not.toHaveBeenCalled()
+  })
+
+  it('should enqueue a deletion job for each expired avatar', async () => {
+    vi.mocked(avatarsRepository.findExpiredDeleted).mockResolvedValue([
+      { id: 1, object_key: 'a.png' },
+      { id: 2, object_key: 'b.png' },
+    ] as never)
+
+    const job = {
+      id: 'cleanup-1',
+      data: { requestId: 'req-1' },
+    } as Job<AvatarCleanupPayload>
+
+    const result = await processor.processCleanup(job)
+
+    expect(cls.set).toHaveBeenCalledWith('requestId', 'req-1')
+    expect(avatarDeletionService.add).toHaveBeenNthCalledWith(
+      1,
+      1,
+      'a.png',
+      'req-1',
+    )
+    expect(avatarDeletionService.add).toHaveBeenNthCalledWith(
+      2,
+      2,
+      'b.png',
+      'req-1',
+    )
+    expect(result).toEqual({ queued: 2 })
   })
 })
