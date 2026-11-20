@@ -3,13 +3,15 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
-  Logger,
 } from '@nestjs/common'
 import type { Request, Response } from 'express'
+import { PinoLogger } from 'nestjs-pino'
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(HttpExceptionFilter.name)
+  constructor(private readonly logger: PinoLogger) {
+    this.logger.setContext(HttpExceptionFilter.name)
+  }
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp()
@@ -32,7 +34,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       ) {
         const responseMessage = exceptionResponse.message
 
-        if (typeof responseMessage === 'string' || Array.isArray(responseMessage)) {
+        if (
+          typeof responseMessage === 'string' ||
+          Array.isArray(responseMessage)
+        ) {
           message = responseMessage as string | string[]
         } else {
           message = exception.message
@@ -40,9 +45,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else {
         message = exception.message
       }
-    } else {
-      const stack = exception instanceof Error ? exception.stack : undefined
-      this.logger.error('Unexpected exception', stack)
+    }
+
+    if (status >= 500) {
+      this.logger.error(
+        {
+          err: exception,
+          statusCode: status,
+          method: request.method,
+          url: request.url,
+        },
+        'HTTP request failed',
+      )
     }
 
     response.status(status).json({
