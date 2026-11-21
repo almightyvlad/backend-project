@@ -20,6 +20,7 @@ import {
   createLoggerModuleOptions,
   HttpExceptionFilter,
   jwtAccessConfig,
+  kafkaConfig,
   loggerConfig,
   REQUEST_ID_KEY,
 } from '@app/common'
@@ -45,6 +46,7 @@ import type { ConfigType } from '@nestjs/config'
         databaseConfig,
         jwtConfig,
         jwtAccessConfig,
+        kafkaConfig,
         avatarCleanupConfig,
         loggerConfig,
         redisConfig,

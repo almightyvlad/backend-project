@@ -1,27 +1,33 @@
-import { Module } from '@nestjs/common';
-import { KafkaService } from './kafka.service.js';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { KAFKA_SERVICE } from './kafka.constants.js';
+import { Module } from '@nestjs/common'
+import { ConfigModule, type ConfigType } from '@nestjs/config'
+import { ClientsModule, Transport } from '@nestjs/microservices'
+import { kafkaConfig } from '@app/common'
+import { KAFKA_SERVICE } from './kafka.constants.js'
+import { KafkaService } from './kafka.service.js'
 
 @Module({
   imports: [
-    ClientsModule.register([
+    ClientsModule.registerAsync([
       {
         name: KAFKA_SERVICE,
-        transport: Transport.KAFKA,
-        options: {
-          client: {
-            clientId: 'user-service',
-            brokers: ['localhost:9092'],
+        imports: [ConfigModule.forFeature(kafkaConfig)],
+        inject: [kafkaConfig.KEY],
+        useFactory: (config: ConfigType<typeof kafkaConfig>) => ({
+          transport: Transport.KAFKA,
+          options: {
+            client: {
+              clientId: 'user-service',
+              brokers: config.brokers,
+            },
+            consumer: {
+              groupId: 'user-service',
+            },
           },
-          consumer: {
-            groupId: 'user-service',
-          },
-        },
+        }),
       },
     ]),
   ],
   providers: [KafkaService],
-  exports: [KafkaService]
+  exports: [KafkaService],
 })
-export class KafkaModule { }
+export class KafkaModule {}

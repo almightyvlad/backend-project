@@ -10,9 +10,12 @@ import {
   HttpExceptionFilter,
   jwtAccessConfig,
   JwtVerificationModule,
+  kafkaConfig,
   loggerConfig,
   REQUEST_ID_KEY,
 } from '@app/common'
+import { appConfig } from './configs/app.config.js'
+import { notificationEnvSchema } from './configs/env.validation.js'
 import { NotificationServiceController } from './notification-service.controller.js'
 import { NotificationServiceService } from './notification-service.service.js'
 import { NotificationModule } from './notification/notification.module.js'
@@ -21,7 +24,8 @@ import { NotificationModule } from './notification/notification.module.js'
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [loggerConfig, jwtAccessConfig],
+      validate: (config) => notificationEnvSchema.parse(config),
+      load: [appConfig, kafkaConfig, loggerConfig, jwtAccessConfig],
     }),
     ClsModule.forRoot({
       global: true,

@@ -3,6 +3,7 @@ import ms, { type StringValue } from 'ms'
 import {
   jwtAccessExpiresInSchema,
   jwtAccessSecretSchema,
+  kafkaBrokersSchema,
   logLevelSchema,
 } from '@app/common'
 
@@ -25,6 +26,8 @@ export const envSchema = z.object({
 
   REDIS_HOST: z.string().min(1),
   REDIS_PORT: z.coerce.number().int().min(1).max(65535),
+
+  KAFKA_BROKERS: kafkaBrokersSchema,
 
   JWT_ACCESS_SECRET: jwtAccessSecretSchema,
   JWT_ACCESS_EXPIRES_IN: jwtAccessExpiresInSchema,

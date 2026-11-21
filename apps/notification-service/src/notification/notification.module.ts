@@ -1,12 +1,11 @@
-import { Module } from '@nestjs/common';
-import { NotificationGateway } from './notification.gateway.js';
-import { JwtVerificationModule } from '@app/common';
-import { NotificationController } from './notification.controller.js';
-import { NotificationConsumer } from './notification.consumer.js';
+import { Module } from '@nestjs/common'
+import { JwtVerificationModule } from '@app/common'
+import { NotificationConsumer } from './notification.consumer.js'
+import { NotificationGateway } from './notification.gateway.js'
 
 @Module({
   imports: [JwtVerificationModule],
   providers: [NotificationGateway],
-  controllers: [NotificationController, NotificationConsumer]
+  controllers: [NotificationConsumer],
 })
-export class NotificationModule { }
+export class NotificationModule {}

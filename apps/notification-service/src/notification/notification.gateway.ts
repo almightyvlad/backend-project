@@ -1,25 +1,22 @@
-import { TransferNotification, verifyAccessToken } from '@app/common';
-import { JwtService } from '@nestjs/jwt';
-import { SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
-import { Socket, Server } from 'socket.io';
+import { verifyAccessToken, type TransferNotification } from '@app/common'
+import { JwtService } from '@nestjs/jwt'
+import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets'
+import { PinoLogger } from 'nestjs-pino'
+import { Server, Socket } from 'socket.io'
 
 @WebSocketGateway()
 export class NotificationGateway {
-
-  constructor(private readonly jwtService: JwtService) {
-  }
-
-
   @WebSocketServer()
   server: Server
 
-  @SubscribeMessage('message')
-  handleMessage(client: Socket, payload: string): { message: string } {
-    return { message: 'Message received!' }
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(NotificationGateway.name)
   }
 
   handleConnection(client: Socket) {
-
     const token = client.handshake.auth.token
 
     if (token === undefined || typeof token !== 'string') {
@@ -29,17 +26,13 @@ export class NotificationGateway {
 
     try {
       const payload = verifyAccessToken(this.jwtService, token)
-
-      const userId = payload.sub
-
-      client.join(`user:${userId}`)
+      client.join(`user:${payload.sub}`)
     } catch {
       client.disconnect()
       return
     }
 
     client.emit('welcome', { message: 'Welcome!' })
-
   }
 
   sendNotification(userId: number, payload: TransferNotification) {
@@ -47,6 +40,6 @@ export class NotificationGateway {
   }
 
   handleDisconnect(client: Socket) {
-    console.log('Client disconnected')
+    this.logger.info({ clientId: client.id }, 'Client disconnected')
   }
 }

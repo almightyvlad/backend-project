@@ -20,13 +20,6 @@ describe('NotificationServiceController (e2e)', () => {
     return request(app.getHttpServer()).get('/').expect(401)
   })
 
-  it('/notification/test (POST) rejects a request without an access token', () => {
-    return request(app.getHttpServer())
-      .post('/notification/test')
-      .send({ userId: 1, payload: {} })
-      .expect(401)
-  })
-
   it('/ (GET) rejects an invalid access token', () => {
     return request(app.getHttpServer())
       .get('/')

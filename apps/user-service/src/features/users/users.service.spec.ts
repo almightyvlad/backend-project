@@ -9,13 +9,24 @@ import { TokensService } from '../../auth/tokens.service.js'
 import { ClsService } from 'nestjs-cls'
 import { PinoLogger } from 'nestjs-pino'
 import { RedisService } from '../../redis/redis.service.js'
+import { KafkaService } from '../../kafka/kafka.service.js'
 
 describe('UsersService', () => {
   let service: UsersService
   let repository: UsersRepository
   let tokensService: TokensService
+  let kafkaService: KafkaService
+  const logger = {
+    setContext: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }
 
   beforeEach(async () => {
+    logger.error.mockReset()
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
@@ -28,6 +39,7 @@ describe('UsersService', () => {
             findById: vi.fn(),
             updateUser: vi.fn(),
             softDeleteUser: vi.fn(),
+            transfer: vi.fn(),
           },
         },
         {
@@ -45,12 +57,12 @@ describe('UsersService', () => {
         },
         {
           provide: PinoLogger,
+          useValue: logger,
+        },
+        {
+          provide: KafkaService,
           useValue: {
-            setContext: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            debug: vi.fn(),
+            publishTransfer: vi.fn().mockReturnValue({ subscribe: vi.fn() }),
           },
         },
         {
@@ -70,6 +82,7 @@ describe('UsersService', () => {
     service = module.get<UsersService>(UsersService)
     repository = module.get<UsersRepository>(UsersRepository)
     tokensService = module.get<TokensService>(TokensService)
+    kafkaService = module.get<KafkaService>(KafkaService)
   })
 
   afterEach(() => {
@@ -142,5 +155,38 @@ describe('UsersService', () => {
     await expect(service.findByLogin('unknown')).rejects.toThrow(
       UnauthorizedException,
     )
+  })
+
+  it('publishes a transfer event after a successful transfer', async () => {
+    const transfer = { recipientId: 2, amount: '10.00' }
+    const result = { senderId: 1, recipientId: 2 }
+
+    vi.mocked(repository.transfer).mockResolvedValue(result as never)
+
+    await expect(service.transfer(transfer, 1)).resolves.toEqual(result)
+
+    expect(repository.transfer).toHaveBeenCalledWith(transfer, 1)
+    expect(kafkaService.publishTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromUserId: '1',
+        toUserId: '2',
+        amount: '10.00',
+      }),
+    )
+  })
+
+  it('logs a kafka failure without failing the transfer', async () => {
+    const transfer = { recipientId: 2, amount: '10.00' }
+
+    vi.mocked(repository.transfer).mockResolvedValue({ ok: true } as never)
+    vi.mocked(kafkaService.publishTransfer).mockReturnValue({
+      subscribe: ({ error }: { error: (reason: unknown) => void }) => {
+        error(new Error('broker down'))
+      },
+    } as never)
+
+    await expect(service.transfer(transfer, 1)).resolves.toEqual({ ok: true })
+
+    expect(logger.error).toHaveBeenCalled()
   })
 })

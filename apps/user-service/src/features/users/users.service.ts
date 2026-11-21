@@ -22,8 +22,6 @@ import { KafkaService } from '../../kafka/kafka.service.js'
 import { TransferNotification } from '@app/common'
 import { randomUUID } from 'crypto'
 
-export type { BalanceTransferCompletedEvent } from '@app/common'
-
 @Injectable()
 export class UsersService {
   constructor(
@@ -148,7 +146,18 @@ export class UsersService {
       occurredAt: new Date().toISOString(),
     }
 
-    this.kafkaService.publishTransfer(event)
+    this.kafkaService.publishTransfer(event).subscribe({
+      error: (error: unknown) => {
+        this.logger.error(
+          {
+            error,
+            senderId,
+            recipientId: transfer.recipientId,
+          },
+          'Failed to publish transfer event',
+        )
+      },
+    })
 
     this.logger.info(
       {
