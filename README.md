@@ -156,7 +156,7 @@ kill -TERM <pid>
 ## Проверки
 
 ```bash
-npm test       # unit tests
+npm test      
 npm run test:e2e
 npm run lint
 npm run build
