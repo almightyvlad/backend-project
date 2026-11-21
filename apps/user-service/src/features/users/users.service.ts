@@ -151,6 +151,7 @@ export class UsersService {
         this.logger.error(
           {
             error,
+            eventId: event.eventId,
             senderId,
             recipientId: transfer.recipientId,
           },
@@ -161,6 +162,7 @@ export class UsersService {
 
     this.logger.info(
       {
+        eventId: event.eventId,
         senderId,
         recipientId: transfer.recipientId,
         amount: transfer.amount,

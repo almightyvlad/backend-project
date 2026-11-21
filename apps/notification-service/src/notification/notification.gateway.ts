@@ -17,9 +17,10 @@ export class NotificationGateway {
   }
 
   handleConnection(client: Socket) {
-    const token = client.handshake.auth.token
+    const auth: unknown = client.handshake.auth
+    const token = readHandshakeToken(auth)
 
-    if (token === undefined || typeof token !== 'string') {
+    if (token === undefined) {
       client.disconnect()
       return
     }
@@ -42,4 +43,22 @@ export class NotificationGateway {
   handleDisconnect(client: Socket) {
     this.logger.info({ clientId: client.id }, 'Client disconnected')
   }
+}
+
+function readHandshakeToken(auth: unknown): string | undefined {
+  if (!isRecord(auth)) {
+    return undefined
+  }
+
+  const token = auth.token
+
+  if (typeof token !== 'string' || token.length === 0) {
+    return undefined
+  }
+
+  return token
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

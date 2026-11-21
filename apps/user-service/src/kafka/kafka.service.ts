@@ -5,7 +5,13 @@ import {
   OnModuleInit,
 } from '@nestjs/common'
 import { ClientKafka } from '@nestjs/microservices'
-import { TRANSFER_EVENTS_TOPIC, type TransferNotification } from '@app/common'
+import { ClsService } from 'nestjs-cls'
+import {
+  REQUEST_ID_HEADER,
+  REQUEST_ID_KEY,
+  TRANSFER_EVENTS_TOPIC,
+  type TransferNotification,
+} from '@app/common'
 import { KAFKA_SERVICE } from './kafka.constants.js'
 
 @Injectable()
@@ -13,6 +19,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(KAFKA_SERVICE)
     private readonly kafkaClient: ClientKafka,
+    private readonly cls: ClsService,
   ) {}
 
   async onModuleInit() {
@@ -24,6 +31,28 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   }
 
   publishTransfer(event: TransferNotification) {
-    return this.kafkaClient.emit(TRANSFER_EVENTS_TOPIC, event)
+    const headers: Record<string, string> = {}
+    const requestId = this.readRequestId()
+
+    if (requestId !== undefined) {
+      headers[REQUEST_ID_HEADER] = requestId
+    }
+
+    return this.kafkaClient.emit(TRANSFER_EVENTS_TOPIC, {
+      value: event,
+      headers,
+    })
+  }
+
+  private readRequestId(): string | undefined {
+    if (!this.cls.isActive()) {
+      return undefined
+    }
+
+    const requestId: unknown = this.cls.get(REQUEST_ID_KEY)
+
+    return typeof requestId === 'string' && requestId.length > 0
+      ? requestId
+      : undefined
   }
 }

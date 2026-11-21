@@ -173,6 +173,15 @@ describe('UsersService', () => {
         amount: '10.00',
       }),
     )
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: expect.any(String),
+        senderId: 1,
+        recipientId: 2,
+        amount: '10.00',
+      }),
+      'Balance transfer completed',
+    )
   })
 
   it('logs a kafka failure without failing the transfer', async () => {

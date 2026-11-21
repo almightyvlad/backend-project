@@ -1,15 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import type { TransferNotification } from '@app/common'
-import { TRANSFER_EVENTS_TOPIC } from '@app/common'
+import { REQUEST_ID_HEADER, TRANSFER_EVENTS_TOPIC } from '@app/common'
+import { ClsService } from 'nestjs-cls'
 import { KAFKA_SERVICE } from './kafka.constants.js'
 import { KafkaService } from './kafka.service.js'
 
 describe('KafkaService', () => {
   let service: KafkaService
   const emit = vi.fn()
+  const cls = {
+    isActive: vi.fn(() => true),
+    get: vi.fn(() => 'req-1'),
+  }
 
   beforeEach(async () => {
     emit.mockReset()
+    cls.isActive.mockReset()
+    cls.isActive.mockReturnValue(true)
+    cls.get.mockReset()
+    cls.get.mockReturnValue('req-1')
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -21,6 +30,10 @@ describe('KafkaService', () => {
             close: vi.fn(),
             emit,
           },
+        },
+        {
+          provide: ClsService,
+          useValue: cls,
         },
       ],
     }).compile()
@@ -39,6 +52,9 @@ describe('KafkaService', () => {
 
     service.publishTransfer(event)
 
-    expect(emit).toHaveBeenCalledWith(TRANSFER_EVENTS_TOPIC, event)
+    expect(emit).toHaveBeenCalledWith(TRANSFER_EVENTS_TOPIC, {
+      value: event,
+      headers: { [REQUEST_ID_HEADER]: 'req-1' },
+    })
   })
 })

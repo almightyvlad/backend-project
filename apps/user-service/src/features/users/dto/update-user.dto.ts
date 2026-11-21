@@ -10,6 +10,10 @@ import {
 } from 'class-validator'
 import { ApiPropertyOptional } from '@nestjs/swagger'
 
+function isFieldPresent(_object: unknown, value: unknown): boolean {
+  return value !== undefined
+}
+
 export class UpdateUserDto {
   @ApiPropertyOptional({
     description: 'New username without whitespace',
@@ -17,7 +21,7 @@ export class UpdateUserDto {
     minLength: 3,
     maxLength: 30,
   })
-  @ValidateIf((_, value) => value !== undefined)
+  @ValidateIf(isFieldPresent)
   @Matches(/^\S+$/)
   @MaxLength(30)
   @MinLength(3)
@@ -27,7 +31,7 @@ export class UpdateUserDto {
     description: 'New email address',
     example: 'vlad@example.com',
   })
-  @ValidateIf((_, value) => value !== undefined)
+  @ValidateIf(isFieldPresent)
   @IsEmail()
   email?: string
 
@@ -36,7 +40,7 @@ export class UpdateUserDto {
     example: 'newsecurepass123',
     minLength: 8,
   })
-  @ValidateIf((_, value) => value !== undefined)
+  @ValidateIf(isFieldPresent)
   @MinLength(8)
   password?: string
 
@@ -46,7 +50,7 @@ export class UpdateUserDto {
     minimum: 18,
     maximum: 120,
   })
-  @ValidateIf((_, value) => value !== undefined)
+  @ValidateIf(isFieldPresent)
   @IsInt()
   @Max(120)
   @Min(18)
@@ -57,7 +61,7 @@ export class UpdateUserDto {
     example: 'Experienced backend developer',
     maxLength: 1000,
   })
-  @ValidateIf((_, value) => value !== undefined)
+  @ValidateIf(isFieldPresent)
   @MaxLength(1000)
   description?: string
 }

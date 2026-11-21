@@ -18,7 +18,11 @@ export {
 export type { AccessTokenPayload } from './jwt/verify-access-token.js'
 export { loggerConfig } from './logger/logger.config.js'
 export { createLoggerModuleOptions } from './logger/logger-options.js'
-export { REQUEST_ID_KEY } from './logger/request-context.js'
+export { REQUEST_ID_HEADER, REQUEST_ID_KEY } from './logger/request-context.js'
 export { TRANSFER_EVENTS_TOPIC } from './kafka/kafka.constants.js'
 export { kafkaConfig } from './kafka/kafka.config.js'
 export * from './kafka/transfer-notification.interface.js'
+export {
+  transferNotificationSchema,
+  type ParsedTransferNotification,
+} from './kafka/transfer-notification.schema.js'

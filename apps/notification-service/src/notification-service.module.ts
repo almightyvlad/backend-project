@@ -12,6 +12,7 @@ import {
   JwtVerificationModule,
   kafkaConfig,
   loggerConfig,
+  REQUEST_ID_HEADER,
   REQUEST_ID_KEY,
 } from '@app/common'
 import { appConfig } from './configs/app.config.js'
@@ -31,16 +32,16 @@ import { NotificationModule } from './notification/notification.module.js'
       global: true,
       middleware: {
         mount: true,
-        setup: (cls, req, res) => {
-          const header = req.headers['x-request-id']
-          const requestId =
-            typeof header === 'string' && header.length > 0
-              ? header
-              : randomUUID()
+        setup: (cls: ClsService, req: unknown, res: unknown) => {
+          if (!isRequestWithId(req) || !canSetHeader(res)) {
+            return
+          }
+
+          const requestId = readRequestIdHeader(req.headers) ?? randomUUID()
 
           req.id = requestId
           cls.set(REQUEST_ID_KEY, requestId)
-          res.setHeader('X-Request-Id', requestId)
+          res.setHeader(REQUEST_ID_HEADER, requestId)
         },
       },
     }),
@@ -65,3 +66,32 @@ import { NotificationModule } from './notification/notification.module.js'
   ],
 })
 export class NotificationServiceModule {}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+type RequestWithId = {
+  headers: unknown
+  id?: string
+}
+
+function isRequestWithId(value: unknown): value is RequestWithId {
+  return isRecord(value) && 'headers' in value
+}
+
+function canSetHeader(
+  value: unknown,
+): value is { setHeader: (name: string, headerValue: string) => void } {
+  return isRecord(value) && typeof value.setHeader === 'function'
+}
+
+function readRequestIdHeader(headers: unknown): string | undefined {
+  if (!isRecord(headers)) {
+    return undefined
+  }
+
+  const header = headers[REQUEST_ID_HEADER]
+
+  return typeof header === 'string' && header.length > 0 ? header : undefined
+}
