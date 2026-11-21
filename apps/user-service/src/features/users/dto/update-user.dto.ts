@@ -1,11 +1,12 @@
 import {
   IsEmail,
   IsInt,
-  IsOptional,
   Matches,
+  Max,
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator'
 import { ApiPropertyOptional } from '@nestjs/swagger'
 
@@ -16,7 +17,7 @@ export class UpdateUserDto {
     minLength: 3,
     maxLength: 30,
   })
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @Matches(/^\S+$/)
   @MaxLength(30)
   @MinLength(3)
@@ -26,7 +27,7 @@ export class UpdateUserDto {
     description: 'New email address',
     example: 'vlad@example.com',
   })
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsEmail()
   email?: string
 
@@ -35,7 +36,7 @@ export class UpdateUserDto {
     example: 'newsecurepass123',
     minLength: 8,
   })
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @MinLength(8)
   password?: string
 
@@ -43,9 +44,11 @@ export class UpdateUserDto {
     description: 'New user age',
     example: 21,
     minimum: 18,
+    maximum: 120,
   })
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsInt()
+  @Max(120)
   @Min(18)
   age?: number
 
@@ -54,7 +57,7 @@ export class UpdateUserDto {
     example: 'Experienced backend developer',
     maxLength: 1000,
   })
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @MaxLength(1000)
   description?: string
 }

@@ -3,6 +3,7 @@ import {
   IsInt,
   IsNotEmpty,
   Matches,
+  Max,
   MaxLength,
   Min,
   MinLength,
@@ -43,9 +44,11 @@ export class CreateUserDto {
     description: 'User age',
     example: 20,
     minimum: 18,
+    maximum: 120,
   })
   @IsNotEmpty()
   @IsInt()
+  @Max(120)
   @Min(18)
   age: number
 

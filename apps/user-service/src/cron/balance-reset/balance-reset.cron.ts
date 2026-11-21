@@ -16,7 +16,6 @@ export class BalanceResetCron {
     this.logger.setContext(BalanceResetCron.name)
   }
 
-  @Cron('*/1 * * * *')
   async handleCron() {
     try {
       await this.cls.run(async () => {
