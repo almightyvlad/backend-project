@@ -17,6 +17,31 @@
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false,
-    "types": ["vitest/globals", "node", "multer"]
-  }
+    "types": ["vitest/globals", "node", "multer"],
+    "paths": {
+      "@app/common": ["./libs/common/src/index.ts"],
+      "@app/common/*": ["./libs/common/src/*"]
+    }
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/user-service/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/notification-service/tsconfig.app.json"
+    },
+    {
+      "path": "./libs/common/tsconfig.lib.json"
+    },
+    {
+      "path": "./libs/common/tsconfig.spec.json"
+    },
+    {
+      "path": "./apps/user-service/tsconfig.spec.json"
+    },
+    {
+      "path": "./apps/notification-service/tsconfig.spec.json"
+    }
+  ]
 }

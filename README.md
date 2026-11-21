@@ -1,6 +1,6 @@
 # Backend Project
 
-NestJS REST API для пользователей, аутентификации, аватаров и переводов баланса. Использует PostgreSQL, Redis, Bull и S3-совместимое хранилище MinIO.
+Монорепозиторий NestJS: `user-service` (пользователи, аутентификация, аватары, переводы) и `notification-service` (Socket.io и Kafka). Общий код лежит в `libs/common`. Инфраструктура: PostgreSQL, Redis, Bull, MinIO и Kafka.
 
 ## Стек
 
@@ -11,6 +11,7 @@ NestJS REST API для пользователей, аутентификации,
 - Bull worker и cron задачи запускаются внутри процесса NestJS
 - MinIO через AWS S3 SDK для файлов аватаров
 - Pino через `nestjs-pino`; request id через `nestjs-cls`
+- Kafka и Socket.io для уведомлений о переводах
 - Vitest, Supertest, Oxlint, Husky
 
 ## Возможности
@@ -21,6 +22,7 @@ NestJS REST API для пользователей, аутентификации,
 - Soft delete аватаров и фоновое удаление файлов и записей после срока хранения
 - Список активных пользователей с последним активным аватаром
 - Перевод баланса с блокировкой строк в транзакции
+- После успешного перевода user-service публикует событие в Kafka, notification-service шлёт его обоим участникам в комнату `user:{id}`
 - Фоновый сброс балансов через Bull
 - Redis-кэш пользователя и списка пользователей с TTL 30 секунд
 - Swagger UI на `/api`
@@ -49,7 +51,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Compose запускает PostgreSQL, MinIO и Redis. Для остановки контейнеров:
+Compose запускает PostgreSQL, MinIO, Redis, Kafka и Kafka UI. Kafka UI: <http://localhost:8080>. Для остановки контейнеров:
 
 ```bash
 docker compose down
@@ -67,20 +69,35 @@ docker compose down
 npm run migrate
 ```
 
-Команда собирает приложение и применяет все неприменённые миграции из `src/databases/migrations`. Её можно безопасно запускать повторно.
+Команда применяет все неприменённые миграции из `apps/user-service/src/databases/migrations`. Её можно безопасно запускать повторно.
 
-### 5. Запустить API и фонового worker
+### 5. Запустить сервисы
 
 ```bash
 npm run start:dev
 ```
 
-HTTP API, Bull processors и cron задачи работают в одном процессе NestJS. `npm run start:dev` параллельно запускает API в watch-режиме и `npm run lint:watch` — oxlint при изменении файлов в `src/` и `test/`. Отдельный процесс worker в текущей конфигурации не запускается. API: <http://localhost:3000>; Swagger: <http://localhost:3000/api>.
+Команда поднимает user-service, notification-service и oxlint при изменении файлов в `apps/` и `libs/`. HTTP API, Bull processors и cron задачи user-service работают в одном процессе. Отдельный процесс worker не запускается.
 
-Только приложение, без lint watcher:
+- user-service: <http://localhost:3000>, Swagger: <http://localhost:3000/api>
+- notification-service: <http://localhost:3001>
+- Socket.io подключается к notification-service. Access token передаётся в `handshake.auth.token`. Клиент попадает в комнату `user:{id}` и слушает событие `notification`
+
+Проверка доставки, когда оба сервиса уже запущены:
 
 ```bash
-npx nest start --watch
+node test-kafka-notifications.mjs
+```
+
+Скрипт сам регистрирует отправителя, получателя и третьего пользователя, ставит отправителю баланс `100.00` в Postgres и переводит `10.00`. У нового пользователя баланс `0`, без этого обновления перевод вернёт 400. Пока user-service запущен, cron раз в минуту снова обнуляет балансы, поэтому скрипт пишет баланс прямо перед переводом. Уведомление должны получить только двое участников.
+
+Свои токены можно передать снаружи, все четыре переменные сразу: `SENDER_TOKEN`, `RECIPIENT_TOKEN`, `STRANGER_TOKEN`, `RECIPIENT_ID`. У отправителя на счёте должно быть не меньше `10.00`.
+
+Только один сервис:
+
+```bash
+npm run start:dev:user
+npm run start:dev:notification
 ```
 
 Только линтер на изменениях:
@@ -94,6 +111,7 @@ npm run lint:watch
 ```bash
 npm run build
 npm run start:prod
+npm run start:prod:notification
 ```
 
 ## Переменные окружения
@@ -102,7 +120,9 @@ npm run start:prod
 
 | Переменная                                                                              | Назначение                                                             |
 | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `PORT`                                                                                  | Порт HTTP API, по умолчанию `3000`                                     |
+| `PORT`                                                                                  | Порт user-service, по умолчанию `3000`                                 |
+| `NOTIFICATION_PORT`                                                                     | Порт notification-service, по умолчанию `3001`                         |
+| `KAFKA_BROKERS`                                                                         | Брокеры Kafka через запятую, по умолчанию `localhost:9092`             |
 | `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` | Подключение к PostgreSQL                                               |
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`                                                | Учётные данные MinIO/S3                                                |
 | `MINIO_API_PORT`, `MINIO_CONSOLE_PORT`                                                  | Порты MinIO в Docker Compose                                           |
@@ -143,7 +163,7 @@ npm run start:prod
 - Worker сначала удаляет объект из MinIO, затем удаляет запись БД. Ошибка удаления файла оставляет запись для повтора Bull.
 - Сброс балансов ставится в Bull queue; фиксированный job id предотвращает одновременную постановку одинаковой ожидающей задачи. Само обнуление идемпотентно.
 - Pino пишет структурированные логи начала, результата и ошибок фоновых задач. Заголовок `Authorization`, пароли и токены не должны попадать в логи.
-- `x-request-id` принимается из входящего заголовка либо генерируется; возвращается в response header.
+- `x-request-id` принимается из входящего заголовка либо генерируется; возвращается в response header. Тот же id user-service кладёт в заголовок Kafka при переводе, notification-service пишет его в логи обработки события.
 
 ## Завершение процесса
 
@@ -156,45 +176,33 @@ kill -TERM <pid>
 ## Проверки
 
 ```bash
-npm test       # unit tests
+npm test      
 npm run test:e2e
 npm run lint
 npm run build
 ```
 
-Pre-commit hook запускает `lint-staged` для staged файлов. Во время разработки `npm run start:dev` дополнительно гоняет oxlint при каждом изменении исходников.
+Pre-commit hook запускает `lint-staged` для staged файлов. Во время разработки `npm run start:dev` дополнительно гоняет oxlint при изменении файлов в `apps/` и `libs/`.
 
 ## Структура проекта
 
 ```text
-src/
-├── auth/                         # login, logout, refresh, JWT и guards
-│   ├── decorators/               # @Public
-│   ├── dto/                      # DTO авторизации
-│   ├── helpers/                  # хеширование паролей и токенов
-│   └── types/                    # типизированный authenticated request
-├── avatars/                      # API, бизнес-логика и repository аватаров
-│   ├── avatar-cleanup.service.ts  # выбор просроченных записей и enqueue
-│   ├── avatars.controller.ts
-│   ├── avatars.repository.ts
-│   └── avatars.service.ts
-├── common/                       # exception filter и общие helpers
-├── configs/                      # registerAs-конфиги и Zod env validation
-├── cron/                         # расписания фоновых задач
-├── databases/                    # Kysely connection, types и migrations
-│   └── migrations/                # последовательные изменения схемы
-├── features/
-│   ├── profile/                  # профиль текущего пользователя
-│   ├── refresh-tokens/           # хранение и ротация refresh tokens
-│   └── users/                    # users API, сервис, repository и DTO
-├── queues/                       # Bull queues и processors
-│   ├── avatar-deletion/          # очистка файлов аватаров
-│   └── balance-reset/            # сброс балансов
-├── redis/                        # Redis client и операции кэша
-├── storage/                      # S3/MinIO client и файловые операции
-├── app.module.ts                 # сборка модулей и cross-cutting providers
-└── main.ts                       # bootstrap, Swagger, pipes и shutdown hooks
-test/                             # e2e tests
+apps/
+├── user-service/src/             # пользователи, auth, аватары, переводы, Kafka producer
+│   ├── auth/
+│   ├── avatars/
+│   ├── configs/
+│   ├── cron/
+│   ├── databases/migrations/
+│   ├── features/
+│   ├── kafka/
+│   ├── queues/
+│   ├── redis/
+│   └── storage/
+└── notification-service/src/     # Socket.io gateway и Kafka consumer
+    ├── configs/
+    └── notification/
+libs/common/src/                  # logger, JWT verification, HttpExceptionFilter, Kafka-контракт
 ```
 
 Миграции применяются только через `npm run migrate`; не используй автоматическую синхронизацию схемы.
